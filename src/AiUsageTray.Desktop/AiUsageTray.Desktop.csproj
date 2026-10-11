@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <StartupObject>AiUsageTray.Desktop.Program</StartupObject>
+    <Product>AI Usage Tray</Product>
+    <Description>Windows subscription quota guidance and notifications</Description>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Globalization.UseNls" Value="true" />
+    <PackageReference Include="Velopack" Version="[1.2.161]" />
+    <ProjectReference Include="..\AiUsageTray.Core\AiUsageTray.Core.csproj" />
+    <ProjectReference Include="..\AiUsageTray.Diagnostics\AiUsageTray.Diagnostics.csproj" />
+  </ItemGroup>
+</Project>

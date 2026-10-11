@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/AiUsageTray.Core/AiUsageTray.Core.csproj" />
+  <Project Path="src/AiUsageTray.Diagnostics/AiUsageTray.Diagnostics.csproj" />
+  <Project Path="src/AiUsageTray.Desktop/AiUsageTray.Desktop.csproj" />
+  <Project Path="tests/AiUsageTray.Tests/AiUsageTray.Tests.csproj" />
+</Solution>

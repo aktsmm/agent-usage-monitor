@@ -1,0 +1,88 @@
+name: Windows validation and packaging
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      draft_release:
+        description: Create a new draft release after license approval (never publish)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2025
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5
+        with:
+          global-json-file: global.json
+      - name: Read version and enforce draft gate
+        id: version
+        shell: pwsh
+        env:
+          CREATE_DRAFT: ${{ inputs.draft_release }}
+        run: |
+          $version = ([xml](Get-Content -LiteralPath '.\Directory.Build.props')).Project.PropertyGroup.VersionPrefix
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version.' }
+          if ($env:CREATE_DRAFT -eq 'true' -and !(Test-Path -LiteralPath '.\LICENSE')) { throw 'License must be finalized before a draft release.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Build, run console tests and create self-contained packages
+        shell: pwsh
+        run: .\scripts\package.ps1 -OutputRoot '.\local\ci-packages'
+      - name: Upload build candidates
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-${{ steps.version.outputs.version }}
+          path: local/ci-packages/release/*
+          if-no-files-found: error
+          retention-days: 14
+  draft:
+    if: github.repository == 'aktsmm/ai-usage-monitor' && github.event_name == 'workflow_dispatch' && inputs.draft_release && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    environment: release-approval
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: windows-${{ needs.build.outputs.version }}
+          path: release
+      - name: Verify existing tag and release without overwriting
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.build.outputs.version }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "v$env:VERSION"
+          $release = gh api "repos/$env:GH_REPO/releases/tags/$tag" 2>&1
+          if ($LASTEXITCODE -eq 0) { throw "Release $tag already exists; refusing overwrite." }
+          if (($release -join "`n") -notmatch 'HTTP 404') { throw "Release lookup failed: $release" }
+          $ref = gh api "repos/$env:GH_REPO/git/ref/tags/$tag" 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            $object = ($ref | ConvertFrom-Json).object
+            if ($object.type -ne 'commit' -or $object.sha -ne $env:TARGET_SHA) { throw 'Existing tag is not the exact target commit; refusing overwrite.' }
+          } elseif (($ref -join "`n") -notmatch 'HTTP 404') { throw "Tag lookup failed: $ref" }
+          Get-Content -LiteralPath '.\release\SHA256SUMS.txt' | ForEach-Object {
+            if ($_ -notmatch '^([0-9a-f]{64})  ([^/\\]+)$') { throw 'Invalid checksum manifest.' }
+            if ((Get-FileHash -LiteralPath (Join-Path '.\release' $Matches[2]) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Matches[1]) { throw 'Checksum mismatch.' }
+          }
+          gh release create $tag --repo $env:GH_REPO --target $env:TARGET_SHA --draft --title "AI Usage Tray $env:VERSION" --notes "Draft only. Review license, signing, privacy and all packaged assets before publication." .\release\*
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed.' }

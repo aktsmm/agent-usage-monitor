@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1200,height=1200,initial-scale=1">
+  <title>Usage Tray Budget UI Mockup - Light</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("scoutTheme");
+      const theme =
+        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <script>
+    if (!new URLSearchParams(window.location.search).has("scoutTheme")) {
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef;
+      --cp-bg-elevated: #fcfbf8;
+      --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5;
+      --cp-border: #dedede;
+      --cp-border-strong: #919191;
+      --cp-text: #242424;
+      --cp-text-muted: #5c5c5c;
+      --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b;
+      --cp-accent-hover: #9a1a41;
+      --cp-accent-soft: rgba(177, 31, 75, 0.08);
+      --cp-accent-fg: #ffffff;
+      --cp-success: #16a34a;
+      --cp-danger: #dc2626;
+      --cp-warning: #f59e0b;
+      --cp-link: #0078d4;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      --cp-overlay: rgba(255, 255, 255, 0.8);
+      --cp-panel: rgba(255, 255, 255, 0.86);
+      --cp-panel-strong: rgba(255, 255, 255, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.55);
+      --cp-highlight: rgba(177, 31, 75, 0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a;
+      --cp-bg-elevated: #343231;
+      --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e;
+      --cp-border: #474747;
+      --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede;
+      --cp-text-muted: #919191;
+      --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1;
+      --cp-accent-hover: #fb7b91;
+      --cp-accent-soft: rgba(253, 142, 161, 0.14);
+      --cp-accent-fg: #1a1a1a;
+      --cp-success: #4ade80;
+      --cp-danger: #f87171;
+      --cp-warning: #fbbf24;
+      --cp-link: #4da6ff;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      --cp-overlay: rgba(41, 41, 41, 0.88);
+      --cp-panel: rgba(41, 41, 41, 0.72);
+      --cp-panel-strong: rgba(41, 41, 41, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.04);
+      --cp-highlight: rgba(253, 142, 161, 0.12);
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 1200px; height: 1200px; margin: 0; overflow: hidden; }
+    body { position: relative; background: var(--cp-bg); color: var(--cp-text); font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, "Yu Gothic UI", sans-serif; font-size: 14px; line-height: 1.35; }
+    button { font: inherit; color: var(--cp-text); background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 10px; padding: 8px 14px; }
+    .board { padding: 32px 40px; }
+    .eyebrow { color: var(--cp-accent); font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+    h1 { margin: 8px 0; font-size: 30px; font-weight: 600; }
+    .lead { margin: 0; color: var(--cp-text-muted); font-size: 15px; }
+    .layout { display: grid; grid-template-columns: 380px 1fr; gap: 32px; margin-top: 28px; align-items: start; }
+    .caption { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; color: var(--cp-text-soft); font-size: 13px; }
+    .caption strong { color: var(--cp-text); font-weight: 600; }
+    .window { border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-surface); overflow: hidden; }
+    .window-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--cp-border); }
+    .app-title { font-size: 20px; font-weight: 600; }
+    .subtitle { color: var(--cp-text-muted); font-size: 12px; margin-top: 3px; }
+    .header-actions { display: flex; gap: 8px; }
+    .header-actions button { padding: 7px 10px; font-size: 12px; }
+    .providers { padding: 12px; display: grid; gap: 8px; }
+    .card { border: 1px solid var(--cp-border); border-radius: 12px; background: var(--cp-surface-soft); padding: 12px; }
+    .provider-title { font-weight: 600; font-size: 16px; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .muted { color: var(--cp-text-muted); }
+    .small { font-size: 12px; }
+    .usage-row { margin-top: 12px; align-items: baseline; }
+    .number { font-size: 28px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .number span { font-size: 17px; color: var(--cp-text-soft); margin-left: 2px; }
+    .bar { height: 6px; border-radius: 10px; background: var(--cp-border); overflow: hidden; margin: 8px 0; }
+    .bar > i { display: block; height: 100%; background: var(--cp-accent); }
+    .bar.secondary > i { background: var(--cp-link); }
+    .metadata { display: flex; justify-content: space-between; color: var(--cp-text-muted); font-size: 12px; gap: 8px; }
+    .status { display: inline-flex; align-items: center; gap: 5px; color: var(--cp-success); font-size: 12px; }
+    .status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--cp-success); }
+    .badge { border: 1px solid var(--cp-border); border-radius: 6px; padding: 2px 6px; font-size: 11px; color: var(--cp-text-muted); }
+    .codex-window { margin-top: 10px; }
+    .codex-window .number { font-size: 22px; }
+    .codex-window .number span { font-size: 14px; }
+    .disabled .provider-title { color: var(--cp-text-muted); }
+    .disabled p { margin: 8px 0 0; color: var(--cp-text-muted); font-size: 12px; line-height: 1.5; }
+    .window-footer { border-top: 1px solid var(--cp-border); padding: 12px 20px; display: flex; justify-content: space-between; font-size: 12px; color: var(--cp-text-muted); }
+    .settings-body { padding: 16px 20px; }
+    .tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--cp-border); padding-bottom: 12px; }
+    .tab { color: var(--cp-text-muted); padding: 0 2px 8px; font-weight: 600; }
+    .tab.active { color: var(--cp-accent); border-bottom: 2px solid var(--cp-accent); }
+    .section-label { margin: 16px 0 8px; color: var(--cp-text-soft); font-size: 12px; font-weight: 600; }
+    .select { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--cp-border); border-radius: 10px; padding: 10px 12px; background: var(--cp-surface-soft); }
+    .setting { padding: 12px 0; border-bottom: 1px solid var(--cp-border); }
+    .setting-title { font-weight: 600; }
+    .setting p { font-size: 12px; color: var(--cp-text-muted); margin: 5px 0 0; }
+    .toggle { width: 36px; height: 20px; border-radius: 12px; background: var(--cp-accent); padding: 3px; flex-shrink: 0; }
+    .toggle::after { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; margin-left: 16px; background: var(--cp-accent-fg); }
+    .inline-controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+    .field { border: 1px solid var(--cp-border); border-radius: 8px; background: var(--cp-surface-soft); padding: 7px 12px; min-width: 72px; text-align: center; }
+    .chip { color: var(--cp-accent); background: var(--cp-accent-soft); border: 1px solid var(--cp-border); border-radius: 8px; padding: 6px 14px; }
+    .notice { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--cp-surface-soft); color: var(--cp-text-muted); font-size: 12px; line-height: 1.7; }
+    .settings-footer { padding: 12px 24px; border-top: 1px solid var(--cp-border); display: flex; align-items: center; justify-content: space-between; }
+    .primary { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
+    .sample-note { position: absolute; left: 40px; bottom: 66px; color: var(--cp-text-muted); font-size: 12px; }
+    .taskbar { position: absolute; left: 40px; bottom: 20px; width: 1120px; height: 36px; border: 1px solid var(--cp-border); background: var(--cp-bg-elevated); border-radius: 10px; display: flex; justify-content: space-between; align-items: center; padding: 0 14px; font-size: 12px; color: var(--cp-text-muted); }
+    .tray { display: flex; gap: 12px; align-items: center; }
+    .tray-dot { width: 17px; height: 17px; border-radius: 50%; border: 4px solid var(--cp-accent); }
+    .budget-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-top: 1px solid var(--cp-border); margin-top: 12px; padding-top: 10px; }
+    .budget-cell .row { font-size: 12px; gap: 4px; }
+    .budget-cell .bar { height: 4px; margin: 7px 0; }
+    .budget-value { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--cp-text-soft); }
+    .unit-note { margin-top: 8px; color: var(--cp-text-muted); font-size: 11px; }
+    .daily-warning { border-top: 1px solid var(--cp-border); margin-top: 12px; padding-top: 10px; }
+    .daily-warning .bar > i { background: var(--cp-warning); }
+    .warning-text { color: var(--cp-warning); font-size: 12px; }
+    .allocation { background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 10px; padding: 14px; }
+    .allocation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+    .allocation-number { font-size: 22px; font-weight: 600; margin: 4px 0; font-variant-numeric: tabular-nums; }
+    .allocation-number span { font-size: 12px; font-weight: 400; color: var(--cp-text-muted); }
+    .compact-setting { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; color: var(--cp-text-muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main class="board">
+    <div class="eyebrow">UI CONCEPT · B / LIGHT · V2</div>
+    <h1>AI 利用状況</h1>
+    <p class="lead">使用量・残量と、日・週の目安</p>
+    <div class="layout">
+      <section>
+        <div class="caption"><strong>利用状況パネル</strong><span>トレイをクリックして表示</span></div>
+        <div class="window" data-fit>
+          <header class="window-header">
+            <div><div class="app-title">Usage Tray</div><div class="subtitle">AI コーディングの利用状況</div></div>
+            <div class="header-actions"><button>更新</button><button>設定</button></div>
+          </header>
+          <div class="providers">
+            <article class="card">
+              <div class="row"><div class="provider-title">GitHub Copilot</div><span class="status">接続済み</span></div>
+              <div class="row small muted" style="margin-top:6px"><span>Enterprise · クレジット</span><span class="badge">HTTP</span></div>
+              <div class="row usage-row"><span class="muted small">使用済み</span><div class="number">36<span>%</span></div></div>
+              <div class="bar"><i style="width:36%"></i></div>
+              <div class="metadata"><span>リセット 11/1 9:00</span><span>次の通知 40%</span></div>
+              <div class="budget-grid">
+                <div class="budget-cell">
+                  <div class="row"><strong>今日</strong><span class="muted">目安の28%</span></div>
+                  <div class="bar"><i style="width:28%"></i></div>
+                  <div class="budget-value">0.9 / 3.23 pt</div>
+                </div>
+                <div class="budget-cell">
+                  <div class="row"><strong>今週</strong><span class="muted">目安の30%</span></div>
+                  <div class="bar"><i style="width:30%"></i></div>
+                  <div class="budget-value">6.8 / 22.58 pt</div>
+                </div>
+              </div>
+              <div class="unit-note">月枠を31日で等分 · pt = 月枠の使用率ポイント</div>
+            </article>
+            <article class="card">
+              <div class="row"><div class="provider-title">Codex</div><span class="status">接続済み</span></div>
+              <div class="row small muted" style="margin-top:6px"><span>ChatGPT の契約枠</span><span class="badge">HTTP</span></div>
+              <div class="codex-window">
+                <div class="row"><span class="small">短期枠</span><div class="number">58<span>%</span></div></div>
+                <div class="bar"><i style="width:58%"></i></div>
+                <div class="metadata"><span>リセットまで 2時間18分</span><span>次の通知 60%</span></div>
+              </div>
+              <div class="codex-window">
+                <div class="row"><span class="small">週次枠</span><div class="number">24<span>%</span></div></div>
+                <div class="bar secondary"><i style="width:24%"></i></div>
+                <div class="metadata"><span>リセットまで 4日</span><span>次の通知 30%</span></div>
+              </div>
+              <div class="daily-warning">
+                <div class="row small"><strong>今日</strong><span class="warning-text">今日の目安を超過</span></div>
+                <div class="bar"><i style="width:100%"></i></div>
+                <div class="row"><span class="budget-value">16.0 / 14.29 pt</span><span class="warning-text">目安の112%</span></div>
+                <div class="unit-note">週間枠 ÷ 7 · pt = 週間枠の使用率ポイント</div>
+              </div>
+            </article>
+            <article class="card disabled">
+              <div class="row"><div class="provider-title">Claude Code</div><span class="badge">未取得</span></div>
+              <p>CLI は導入済み。取得方式を確認中です。<br>週間枠が取得できれば、日別目安も表示します。</p>
+            </article>
+          </div>
+          <footer class="window-footer"><span>最終取得 たった今</span><span>5分ごとに更新</span></footer>
+        </div>
+      </section>
+      <section>
+        <div class="caption"><strong>設定ウィンドウ</strong><span>通知条件はサービス・枠ごと</span></div>
+        <div class="window" data-fit>
+          <header class="window-header"><div class="app-title">設定</div><span class="muted small">Usage Tray</span></header>
+          <div class="settings-body">
+            <nav class="tabs"><span class="tab active">通知</span><span class="tab">接続</span><span class="tab">外観・起動</span></nav>
+            <div class="section-label">設定するサービス</div>
+            <div class="select"><span>GitHub Copilot · クレジット</span><span class="muted">⌄</span></div>
+            <div class="section-label">日・週の目安を自動設定</div>
+            <div class="allocation">
+              <div class="row"><strong>月間総枠を日数で等分</strong><span class="badge">固定配分</span></div>
+              <div class="allocation-grid">
+                <div><span class="small muted">1日の目安</span><div class="allocation-number">3.23 <span>pt</span></div><span class="small muted">月枠 ÷ 31日</span></div>
+                <div><span class="small muted">1週間の目安</span><div class="allocation-number">22.58 <span>pt</span></div><span class="small muted">1日分 × 7日</span></div>
+              </div>
+              <div class="unit-note">未使用分の繰り越し・残量による再配分はしません。</div>
+            </div>
+            <div class="setting">
+              <div class="row"><div class="setting-title">日別目安を超えたら通知</div><div class="toggle"></div></div>
+              <p>その日の使用量が目安を超えたときに通知します。</p>
+            </div>
+            <div class="setting">
+              <div class="row"><div class="setting-title">週別目安を超えたら通知</div><div class="toggle"></div></div>
+              <p>Copilot の週間目安も、契約の上限とは別に確認できます。</p>
+            </div>
+            <div class="setting">
+              <div class="row"><div><div class="setting-title">枠のリセットを通知</div><p>新しい期間のデータを確認してから通知します。</p></div><div class="toggle"></div></div>
+            </div>
+            <div class="compact-setting"><span>その他の通知：10pt刻み・80 / 90 / 95%警告</span><button>編集</button></div>
+            <div class="notice">日付と週の区切りは日本時間。記録がない分は「未計測」。<br>同じ目安の超過は、その期間に一度だけ通知します。</div>
+          </div>
+          <footer class="settings-footer"><span class="muted small">変更は保存後に反映</span><div class="header-actions"><button>キャンセル</button><button class="primary">保存</button></div></footer>
+        </div>
+      </section>
+    </div>
+  </main>
+  <div class="sample-note">UI 確認用モック · 数値・接続状態はサンプルです。実際のサービスには接続していません。</div>
+  <div class="taskbar"><span>表示イメージ · Windows タスクトレイ</span><div class="tray"><span>Usage Tray</span><span class="tray-dot"></span><span>23:34</span></div></div>
+</body>
+</html>
