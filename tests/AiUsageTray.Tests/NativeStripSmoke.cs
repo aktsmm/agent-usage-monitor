@@ -9,6 +9,7 @@ static class NativeStripSmoke
     {
         using var process = Process.GetCurrentProcess();
         uint before = GetGuiResources(process.Handle, 0);
+        uint userBefore = GetGuiResources(process.Handle, 1);
         var errors = new List<string>();
         for (int batch = 0; batch < 3; batch++)
         {
@@ -22,19 +23,22 @@ static class NativeStripSmoke
                 new(WindowKind.Monthly, now.AddDays(-10), now.AddDays(21)));
             for (int i = 0; i < 40; i++)
             {
-                strip.Update(new DesktopSettings { UsageStripEnabled = i % 2 == 0,
+                strip.Update(new DesktopSettings { CopilotEnabled = true, GithubPinnedAccount = snapshot.Key.Account.Id,
+                    UsageStripEnabled = i % 2 == 0,
                     Language = i % 4 < 2 ? DisplayLanguage.English : DisplayLanguage.Japanese,
                     Theme = i % 4 == 0 ? "Light" : "Dark", UsageStripPosition = new(-9999, -9999) },
-                    [snapshot], TimeSpan.FromMinutes(10));
+                    [i % 3 == 0 ? snapshot with { ObservedAt = now.AddHours(-1) } : snapshot], TimeSpan.FromMinutes(10));
                 Pump();
                 if (GetForegroundWindow() == strip.Handle)
                     throw new InvalidOperationException("Native strip activated itself");
             }
-            strip.Update(new DesktopSettings { UsageStripEnabled = true, Language = DisplayLanguage.English },
+            strip.Update(new DesktopSettings { CopilotEnabled = true, GithubPinnedAccount = snapshot.Key.Account.Id,
+                UsageStripEnabled = true, Language = DisplayLanguage.English },
                 [snapshot], TimeSpan.FromMinutes(10));
             Pump();
             SendMessage(strip.Handle, 0x0010, IntPtr.Zero, IntPtr.Zero);
-            strip.Update(new DesktopSettings { UsageStripEnabled = true, Language = DisplayLanguage.English },
+            strip.Update(new DesktopSettings { CopilotEnabled = true, GithubPinnedAccount = snapshot.Key.Account.Id,
+                UsageStripEnabled = true, Language = DisplayLanguage.English },
                 [snapshot], TimeSpan.FromMinutes(10));
             Pump();
             if (!IsWindowVisible(strip.Handle))
@@ -44,13 +48,15 @@ static class NativeStripSmoke
         }
         Pump();
         uint after = GetGuiResources(process.Handle, 0);
+        uint userAfter = GetGuiResources(process.Handle, 1);
         if (batch == 0)
         {
             // First use initializes USER/GDI font caches; compare a second full create/toggle/dispose cycle.
             before = after;
+            userBefore = userAfter;
         }
-        else if (after > before + 2)
-            throw new InvalidOperationException($"Native strip GDI counts: before={before}, after={after}");
+        else if (after > before + 2 || userAfter > userBefore + 2)
+            throw new InvalidOperationException($"Native strip resources: GDI={before}/{after}, USER={userBefore}/{userAfter}");
         }
     }
 

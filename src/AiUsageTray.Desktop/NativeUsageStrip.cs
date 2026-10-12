@@ -19,9 +19,11 @@ public sealed class NativeUsageStrip : IDisposable
     private readonly IntPtr handle;
     private IntPtr font;
     private uint fontDpi;
+    private IntPtr tooltip;
+    private IntPtr tooltipText;
+    private DesktopSettings selected = new();
     private QuotaSnapshot[] snapshots = [];
     private HashSet<Provider> failed = [];
-    private UiLocalizer localizer = new();
     private TimeSpan maximumAge = TimeSpan.FromMinutes(10);
     private UsageStripPosition? requested;
     private bool enabled;
@@ -29,6 +31,8 @@ public sealed class NativeUsageStrip : IDisposable
     private bool positioning;
     private bool disposed;
     private string text = "";
+    private IReadOnlyList<UsageStripItem> items = [];
+    private readonly List<(UsageStripItem Item, int Left, int Width)> layout = [];
     public IntPtr Handle => handle;
 
     public NativeUsageStrip(IntPtr owner, Action open, Action<int, int> menu,
@@ -56,15 +60,30 @@ public sealed class NativeUsageStrip : IDisposable
             DestroyWindow(handle); UnregisterClass(className, windowClass.Instance);
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
+        bool ready = false;
+        try
+        {
+            var controls = new CommonControls { Size = 8, Classes = 0x00ff };
+            if (!InitCommonControlsEx(ref controls)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            tooltip = CreateWindowEx(0x08000008, "tooltips_class32", "", 0x80000003,
+                0, 0, 0, 0, handle, IntPtr.Zero, windowClass.Instance, IntPtr.Zero);
+            if (tooltip == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+            tooltipText = Marshal.StringToHGlobalUni("");
+            var tool = Tool();
+            if (SendToolMessage(tooltip, 0x0432, IntPtr.Zero, ref tool) == IntPtr.Zero)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "usage_strip_tooltip_failed");
+            ready = true;
+        }
+        finally { if (!ready) Dispose(); }
     }
 
     public void Update(DesktopSettings settings, IEnumerable<QuotaSnapshot> verified, TimeSpan age,
         IEnumerable<Provider>? failedProviders = null)
     {
+        selected = settings;
         enabled = settings.UsageStripEnabled;
         requested = settings.UsageStripPosition;
         dark = settings.Theme == "Dark";
-        localizer = new(settings.Language);
         snapshots = verified.ToArray();
         failed = failedProviders?.ToHashSet() ?? [];
         maximumAge = age;
@@ -76,14 +95,36 @@ public sealed class NativeUsageStrip : IDisposable
     private void Refresh()
     {
         if (disposed) return;
-        text = string.Join("  |  ", UsageStrip.Values(snapshots, DateTimeOffset.UtcNow, maximumAge)
-            .Select(v => $"{v.Provider} {(v.Percentage is { } value ? value.ToString("0.#", localizer.Culture) + "%" : "—")}"
-                + (v.Stale || failed.Contains(v.Provider) && v.Percentage is not null
-                    ? " · " + localizer.Text(UiText.Stale) : v.Ambiguous ? " · ?" : "")));
-        SetWindowText(handle, text + " · " + localizer.Text(UiText.UsageStripNotes));
-        if (!enabled) { ShowWindow(handle, 0); return; }
+        var presentation = UsageStripPresentation.Create(selected, snapshots, DateTimeOffset.UtcNow, maximumAge, failed);
+        text = presentation.Text;
+        items = presentation.Items;
+        SetWindowText(handle, text);
+        UpdateTooltip(presentation.Tooltip);
+        if (!enabled)
+        {
+            SendMessage(tooltip, 0x041c, IntPtr.Zero, IntPtr.Zero);
+            ShowWindow(handle, 0);
+            return;
+        }
         Place();
         InvalidateRect(handle, IntPtr.Zero, false);
+    }
+
+    private ToolInfo Tool() => new()
+    {
+        // V2 TOOLINFO works with both the native host and manifest-free Console runner.
+        Size = (uint)Marshal.OffsetOf<ToolInfo>(nameof(ToolInfo.Reserved)).ToInt32(),
+        Flags = 0x0011, Window = handle,
+        Id = new UIntPtr(unchecked((ulong)handle.ToInt64())), Text = tooltipText
+    };
+
+    private void UpdateTooltip(string value)
+    {
+        var previous = tooltipText;
+        tooltipText = Marshal.StringToHGlobalUni(value);
+        var tool = Tool();
+        SendToolMessage(tooltip, 0x0439, IntPtr.Zero, ref tool);
+        Marshal.FreeHGlobal(previous);
     }
 
     private void UpdateFont()
@@ -128,6 +169,21 @@ public sealed class NativeUsageStrip : IDisposable
                 {
                     if (!GetTextExtentPoint32(dc, text, text.Length, out size))
                         throw new Win32Exception(Marshal.GetLastWin32Error());
+                    layout.Clear();
+                    int left = margin;
+                    foreach (var item in items)
+                    {
+                        if (layout.Count > 0)
+                        {
+                            if (!GetTextExtentPoint32(dc, "  |  ", 5, out var separator))
+                                throw new Win32Exception(Marshal.GetLastWin32Error());
+                            left += separator.Width;
+                        }
+                        if (!GetTextExtentPoint32(dc, item.Text, item.Text.Length, out var extent))
+                            throw new Win32Exception(Marshal.GetLastWin32Error());
+                        layout.Add((item, left, extent.Width));
+                        left += extent.Width;
+                    }
                 }
                 finally { SelectObject(dc, previous); }
             }
@@ -139,6 +195,7 @@ public sealed class NativeUsageStrip : IDisposable
             var clamped = UsageStrip.Clamp(start, new(safe.Left, safe.Top, safe.Right, safe.Bottom), width, height);
             if (!SetWindowPos(handle, new IntPtr(-1), clamped.X, clamped.Y, width, height, 0x0010 | 0x0040))
                 throw new Win32Exception(Marshal.GetLastWin32Error());
+            SendMessage(tooltip, 0x0418, IntPtr.Zero, new IntPtr((int)(400 * fontDpi / 96)));
         }
         finally { positioning = false; }
     }
@@ -163,6 +220,9 @@ public sealed class NativeUsageStrip : IDisposable
                 case 0x0010: return IntPtr.Zero;
                 case 0x000F:
                     Paint(window);
+                    return IntPtr.Zero;
+                case 0x0318:
+                    Draw(window, wParam);
                     return IntPtr.Zero;
                 case 0x0014: return new IntPtr(1);
                 case 0x0021: return new IntPtr(3);
@@ -207,23 +267,61 @@ public sealed class NativeUsageStrip : IDisposable
     {
         var dc = BeginPaint(window, out var paint);
         if (dc == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+        try { Draw(window, dc); }
+        finally { EndPaint(window, ref paint); }
+    }
+
+    private void Draw(IntPtr window, IntPtr dc)
+    {
         IntPtr background = IntPtr.Zero, pen = IntPtr.Zero, previousBrush = IntPtr.Zero, previousPen = IntPtr.Zero;
+        IntPtr staleBackground = IntPtr.Zero, hatch = IntPtr.Zero;
         try
         {
             GetClientRect(window, out var rect);
             background = CreateSolidBrush(dark ? 0x00292929u : 0x00ffffffu);
             pen = CreatePen(0, 1, dark ? 0x00a18efdu : 0x004b1fb1u);
+            if (layout.Any(segment => segment.Item.Stale))
+            {
+                staleBackground = CreateSolidBrush(dark ? 0x00333333u : 0x00f2f2f2u);
+                hatch = CreateHatchBrush(3, dark ? 0x00525252u : 0x00d5d5d5u);
+                if (staleBackground == IntPtr.Zero || hatch == IntPtr.Zero)
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
             if (background == IntPtr.Zero || pen == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
             previousBrush = SelectObject(dc, background); previousPen = SelectObject(dc, pen);
             RoundRect(dc, 0, 0, rect.Right, rect.Bottom, 12, 12);
             SetBkMode(dc, 1);
-            SetTextColor(dc, dark ? 0x00dededeu : 0x00242424u);
             var previousFont = font == IntPtr.Zero ? IntPtr.Zero : SelectObject(dc, font);
             try
             {
                 int inset = Math.Max(8, (int)(8 * fontDpi / 96));
-                rect.Left += inset; rect.Right -= inset;
-                DrawText(dc, text, text.Length, ref rect, 0x0004 | 0x0020 | 0x8000 | 0x0800);
+                int right = rect.Right - inset;
+                int previousRight = inset;
+                foreach (var (item, left, width) in layout)
+                {
+                    if (left >= right) break;
+                    if (left > previousRight)
+                    {
+                        var separator = new Rect { Left = previousRight, Right = Math.Min(left, right),
+                            Top = 0, Bottom = rect.Bottom };
+                        SetTextColor(dc, dark ? 0x00dededeu : 0x00242424u);
+                        DrawText(dc, "  |  ", 5, ref separator, 0x0004 | 0x0020 | 0x0800);
+                    }
+                    var area = new Rect { Left = left, Right = Math.Min(left + width, right),
+                        Top = 0, Bottom = rect.Bottom };
+                    if (item.Stale)
+                    {
+                        var pattern = area;
+                        pattern.Top = inset / 2; pattern.Bottom -= inset / 2;
+                        SetBkColor(dc, dark ? 0x00333333u : 0x00f2f2f2u);
+                        if (FillRect(dc, ref pattern, staleBackground) == 0 || FillRect(dc, ref pattern, hatch) == 0)
+                            throw new Win32Exception(Marshal.GetLastWin32Error());
+                    }
+                    SetTextColor(dc, item.Stale ? dark ? 0x00ccccccu : 0x00555555u
+                        : dark ? 0x00dededeu : 0x00242424u);
+                    DrawText(dc, item.Text, item.Text.Length, ref area, 0x0004 | 0x0020 | 0x0800);
+                    previousRight = left + width;
+                }
             }
             finally { if (previousFont != IntPtr.Zero) SelectObject(dc, previousFont); }
         }
@@ -233,7 +331,8 @@ public sealed class NativeUsageStrip : IDisposable
             if (previousBrush != IntPtr.Zero) SelectObject(dc, previousBrush);
             if (pen != IntPtr.Zero) DeleteObject(pen);
             if (background != IntPtr.Zero) DeleteObject(background);
-            EndPaint(window, ref paint);
+            if (staleBackground != IntPtr.Zero) DeleteObject(staleBackground);
+            if (hatch != IntPtr.Zero) DeleteObject(hatch);
         }
     }
 
@@ -242,6 +341,8 @@ public sealed class NativeUsageStrip : IDisposable
         if (disposed) return;
         disposed = true;
         KillTimer(handle, new UIntPtr(1));
+        if (tooltip != IntPtr.Zero) { DestroyWindow(tooltip); tooltip = IntPtr.Zero; }
+        if (tooltipText != IntPtr.Zero) { Marshal.FreeHGlobal(tooltipText); tooltipText = IntPtr.Zero; }
         DestroyWindow(handle);
         if (font != IntPtr.Zero) DeleteObject(font);
         UnregisterClass(className, GetModuleHandle(null));
@@ -255,6 +356,12 @@ public sealed class NativeUsageStrip : IDisposable
         public IntPtr Instance, Icon, Cursor, Background; public string? MenuName; public string ClassName; public IntPtr SmallIcon;
     }
     [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] private struct CommonControls { public uint Size, Classes; }
+    [StructLayout(LayoutKind.Sequential)] private struct ToolInfo
+    {
+        public uint Size, Flags; public IntPtr Window; public UIntPtr Id; public Rect Bounds;
+        public IntPtr Instance, Text, Parameter, Reserved;
+    }
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct Size { public int Width, Height; }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public uint Size; public Rect Monitor, Work; public uint Flags; }
@@ -280,6 +387,8 @@ public sealed class NativeUsageStrip : IDisposable
     [DllImport("user32.dll")] private static extern bool KillTimer(IntPtr window, UIntPtr id);
     [DllImport("user32.dll")] private static extern bool ReleaseCapture();
     [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern IntPtr SendToolMessage(IntPtr window, uint message, IntPtr wParam, ref ToolInfo tool);
+    [DllImport("comctl32.dll")] private static extern bool InitCommonControlsEx(ref CommonControls controls);
     [DllImport("user32.dll", EntryPoint = "PostMessageW")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll", EntryPoint = "DefWindowProcW")] private static extern IntPtr DefWindowProc(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] private static extern bool InvalidateRect(IntPtr window, IntPtr rect, bool erase);
@@ -289,12 +398,15 @@ public sealed class NativeUsageStrip : IDisposable
     [DllImport("user32.dll")] private static extern bool EndPaint(IntPtr window, ref PaintData paint);
     [DllImport("gdi32.dll", EntryPoint = "CreateFontW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr CreateFont(int height, int width, int angle, int orientation, int weight, uint italic, uint underline, uint strike, uint charset, uint outPrecision, uint clipPrecision, uint quality, uint pitch, string face);
     [DllImport("gdi32.dll")] private static extern IntPtr CreateSolidBrush(uint color);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateHatchBrush(int style, uint color);
+    [DllImport("user32.dll")] private static extern int FillRect(IntPtr dc, ref Rect rect, IntPtr brush);
     [DllImport("gdi32.dll")] private static extern IntPtr CreatePen(int style, int width, uint color);
     [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr dc, IntPtr value);
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr value);
     [DllImport("gdi32.dll")] private static extern bool RoundRect(IntPtr dc, int left, int top, int right, int bottom, int ellipseWidth, int ellipseHeight);
     [DllImport("gdi32.dll")] private static extern int SetBkMode(IntPtr dc, int mode);
     [DllImport("gdi32.dll")] private static extern uint SetTextColor(IntPtr dc, uint color);
+    [DllImport("gdi32.dll")] private static extern uint SetBkColor(IntPtr dc, uint color);
     [DllImport("gdi32.dll", EntryPoint = "GetTextExtentPoint32W", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool GetTextExtentPoint32(IntPtr dc, string text, int count, out Size size);
     [DllImport("user32.dll", EntryPoint = "DrawTextW", CharSet = CharSet.Unicode)] private static extern int DrawText(IntPtr dc, string text, int count, ref Rect rect, uint format);
 }

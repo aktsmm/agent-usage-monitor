@@ -308,4 +308,8 @@ Shown after quota total and period are available.</value></data>
   <data name="PanelRequired" xml:space="preserve"><value>Open the window from the tray.</value></data>
   <data name="ConsumptionViewMissing" xml:space="preserve"><value>The observed consumption view is missing.</value></data>
   <data name="HostStopped" xml:space="preserve"><value>The background monitor stopped unexpectedly ({0}). Check the profile's diagnostics folder for available lifecycle evidence. Restart the app after checking the failure; no update was applied.</value></data>
+  <data name="UsageStripWaiting" xml:space="preserve"><value>Waiting for usage</value></data>
+  <data name="UsageStripFresh" xml:space="preserve"><value>Current</value></data>
+  <data name="UsageStripFetchFailed" xml:space="preserve"><value>Fetch failed</value></data>
+  <data name="UsageStripLastFetch" xml:space="preserve"><value>Last fetched: {0}</value></data>
 </root>
