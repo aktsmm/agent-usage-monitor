@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Usage Monitor · 履歴と保存 UI モック</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("scoutTheme");
+    const theme =
+      param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--cp-bg); color: var(--cp-text); font: 14px "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; }
+main { max-width: 980px; margin: 28px auto; padding: 24px; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: 16px; }
+header, .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 4px 0 8px; font-size: 26px; font-weight: 600; } h2 { margin: 0 0 12px; font-size: 18px; font-weight: 600; }
+p { margin: 8px 0; line-height: 1.7; } small, .muted { color: var(--cp-text-muted); }
+button, select, input { font: inherit; color: var(--cp-text); background: var(--cp-surface); border: 1px solid var(--cp-border); padding: 8px 12px; border-radius: .625rem; }
+button { cursor: pointer; } button:hover, button[aria-selected="true"], .range.active { border-color: var(--cp-accent); background: var(--cp-accent-soft); }
+button.primary { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
+label { display: grid; gap: 8px; } nav { display: flex; gap: 8px; margin: 20px 0; }
+.filters { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.card { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+.badge { display: inline-block; font-size: 12px; padding: 4px 8px; border: 1px solid var(--cp-border); border-radius: .625rem; color: var(--cp-text-muted); }
+.badge.ok { color: var(--cp-success); } .badge.warning { color: var(--cp-warning); }
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chart { position: relative; margin: 24px 0 12px 40px; height: 220px; border-left: 1px solid var(--cp-border-strong); border-bottom: 1px solid var(--cp-border-strong); }
+.gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--cp-border); font-size: 11px; color: var(--cp-text-muted); }
+.gridline span { position: absolute; left: -36px; top: -8px; }
+.guide { position: absolute; z-index: 1; left: 0; right: 0; border-top: 2px dashed var(--cp-warning); pointer-events: none; }
+.guide span { position: absolute; right: 4px; top: -22px; color: var(--cp-warning); background: var(--cp-surface); font-size: 12px; padding: 2px; }
+#bars { position: absolute; inset: 0; display: flex; gap: 8px; padding: 0 12px; align-items: flex-end; }
+.barcell { height: 100%; flex: 1; display: flex; align-items: flex-end; justify-content: center; position: relative; cursor: pointer; padding: 0; background: none; border: 0; border-radius: 0; }
+.barcell:hover { background: var(--cp-accent-soft); } .bar { width: min(100%,56px); min-height: 2px; background: var(--cp-accent); border-radius: 4px 4px 0 0; }
+.bar.partial, .bar.missing { background: repeating-linear-gradient(135deg,var(--cp-accent-soft),var(--cp-accent-soft) 4px,var(--cp-border-strong) 4px,var(--cp-border-strong) 6px); border: 1px solid var(--cp-border-strong); }
+.bar.missing { height: 100%; opacity: .45; } .barcell small { position: absolute; bottom: -24px; font-size: 11px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 32px 0 12px; color: var(--cp-text-muted); font-size: 12px; }
+.legend i { display: inline-block; width: 12px; height: 12px; vertical-align: middle; background: var(--cp-accent); margin-right: 4px; }
+.legend .partialkey { background: repeating-linear-gradient(135deg,var(--cp-accent-soft),var(--cp-accent-soft) 3px,var(--cp-border-strong) 3px,var(--cp-border-strong) 4px); }
+.detail { padding: 16px; background: var(--cp-surface-soft); border-radius: .625rem; min-height: 106px; }
+.stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-top: 12px; }
+.stats strong { display: block; font-size: 20px; margin-top: 4px; font-weight: 600; }
+.overviewPreview { width: 420px; max-width: 100%; border: 1px solid var(--cp-border); border-radius: 16px; padding: 16px; margin-top: 16px; background: var(--cp-surface-soft); }
+.overviewPreview h2 { font-size: 22px; margin: 8px 0; }
+.overviewPreview button { padding: 6px 10px; }
+.taskbarPreview { position: relative; margin-top: 52px; height: 56px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: .625rem; display: flex; align-items: center; justify-content: flex-end; padding: 12px; }
+.usageStrip { position: absolute; right: 20px; bottom: 64px; border: 1px solid var(--cp-accent); border-radius: .625rem; padding: 8px 12px; background: var(--cp-surface); color: var(--cp-text); font-size: 13px; white-space: nowrap; }
+.path { font: 12px Consolas,"Courier New",Courier,monospace; padding: 12px; background: var(--cp-surface-soft); border-radius: .625rem; overflow-wrap: anywhere; margin: 12px 0; }
+.notice { border-left: 3px solid var(--cp-warning); padding: 8px 12px; background: var(--cp-surface-soft); margin-top: 16px; }
+table { width: 100%; border-collapse: collapse; } th,td { text-align: left; padding: 12px 8px; border-bottom: 1px solid var(--cp-border); }
+dialog { background: var(--cp-surface); color: var(--cp-text); border: 1px solid var(--cp-border); border-radius: 16px; width: min(560px,95%); padding: 24px; }
+dialog::backdrop { background: var(--cp-overlay); } #feedback { min-height: 24px; color: var(--cp-warning); margin-top: 12px; }
+[hidden] { display: none !important; }
+@media(max-width:700px) { main { margin: 8px; padding: 16px; } .filters { grid-template-columns:1fr; } .stats { grid-template-columns: repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<main>
+  <header><div><small>Agent Usage Monitor</small><h1>エージェント利用状況</h1><span class="muted">日別履歴 · 契約枠の消費ペース</span></div>
+    <div class="controls"><span class="badge">UIモック・すべて架空データ</span><button id="theme">明暗切替</button></div></header>
+  <nav><button id="historyTab" aria-selected="true">日別履歴</button><button id="storageTab" aria-selected="false">履歴・保存設定</button><button id="languageTab" aria-selected="false">外観・言語</button></nav>
+  <section id="history">
+    <div class="filters">
+      <label>サービス<select id="provider"><option>GitHub Copilot</option><option>Codex</option><option>Claude Code</option></select></label>
+      <label>アカウント<select><option>デモ・アカウント</option></select></label>
+      <label>契約枠<select id="bucket"><option>月間枠</option></select></label>
+    </div>
+    <div class="card">
+      <div class="row"><div class="controls"><button class="range active" data-days="7">7日</button><button class="range" data-days="30">30日</button><button class="range" data-days="90">90日</button><label>月を選択<input id="month" type="month" value="2026-10"></label></div><span class="badge ok" id="saveBadge">保存済み</span></div>
+      <p><strong id="rangeLabel">2026/10/06 – 10/12</strong> <span class="muted">（日本時間） · 単位: pt</span></p>
+      <div class="chart">
+        <div class="gridline" style="bottom:100%"><span>10 pt</span></div><div class="gridline" style="bottom:50%"><span>5</span></div><div class="gridline" style="bottom:0"><span>0</span></div>
+        <div class="guide" id="guide" style="bottom:32.3%"><span id="guideLabel">日目安 3.23 pt</span></div><div id="bars"></div>
+      </div>
+      <div class="legend"><span><i></i>観測できた消費</span><span><i class="partialkey"></i>部分計測（下限）</span><span><i class="partialkey"></i>未計測 ≠ 0</span><span>破線: 固定の日目安</span></div>
+      <div class="detail" id="detail"></div>
+      <div class="notice">料金・token数ではありません。棒は累積使用率の合計ではなく、同じ契約枠内の観測差分です。reset・plan・単位が変わる区間は別表示にします。</div>
+    </div>
+    <div class="card"><div class="row"><div><h2>履歴ファイル</h2><small>表示月の集計ファイルをExplorerで選択表示</small></div><div class="controls"><button class="demoOpen">保存フォルダーを開く</button><button class="demoOpen">対象ファイルを表示</button></div></div></div>
+  </section>
+  <section id="appearance" hidden>
+    <div class="card">
+      <h2>外観・言語</h2>
+      <label><span>表示言語</span><select id="language"><option value="System">システムに合わせる</option><option value="Japanese">日本語</option><option value="English">English</option></select></label>
+      <p>初回はWindows表示言語に合わせます。ja系は日本語、それ以外はEnglish。手動選択は保存され、再起動後も維持します。</p>
+      <p class="muted">表示だけの変更です。アカウント・通知抑止・契約枠・記録ID・JST日境界・月曜開始は変わりません。</p>
+      <label class="row"><input id="stripEnabled" type="checkbox" checked><span>タスクバー付近にUsage％を表示（既定ON）</span></label>
+      <p class="muted">標準タスクバーを書き換えず、そのすぐ上に小さな専用表示を置きます。ドラッグで位置調整、ダブルクリックで利用状況を開きます。</p>
+      <div class="taskbarPreview"><div id="stripPreview" class="usageStrip">Copilot 36%　|　Codex 42%　|　Claude 18%</div><span>8:48　2026/10/12</span></div>
+      <p class="muted">Copilotは月間枠、Codex／Claudeは取得できた週間枠の使用率。日目安の消化率とは別です。未取得は「—」、古い値は明示します。</p>
+      <div class="row"><button id="toHistory">この言語で履歴を見る</button><button id="toStorage">この言語で保存設定を見る</button></div>
+      <div class="overviewPreview">
+        <small>420px幅の概要プレビュー · 架空データ</small>
+        <h2>エージェント利用状況</h2>
+        <div class="controls"><button>更新</button><button>履歴</button><button>設定</button></div>
+        <p><strong>GitHub Copilot</strong> · Demo account</p>
+        <h2>使用済み 36% · 残り 64%</h2>
+        <p>今日 · 日目安の62%（部分計測）</p>
+        <small>日境界: JST (UTC+9) / 週は月曜開始</small>
+      </div>
+      <p class="muted">この追加確認は言語選択の位置と英語の幅だけです。既存の履歴・保存機能構成の再承認ではありません。</p>
+    </div>
+  </section>
+  <section id="storage" hidden>
+    <div class="card"><div class="row"><h2>履歴の保存先</h2><span class="badge ok" id="storageSaveBadge">保存済み</span></div>
+      <p>日別集計・長期履歴・アーカイブを保存。OneDriveも通常のフォルダーとして選べます。</p>
+      <div class="path" id="location">（既定のローカル保存先）\history\（このPCの記録ID）</div>
+      <div class="controls"><button id="choose" class="primary">フォルダーを選ぶ…</button><button class="demoOpen">保存フォルダーを開く</button><button id="offline">保存待ち状態を見る</button></div>
+      <div class="notice" id="pending" hidden>保存待ち · 12件をこのPCのローカルに保持しています。保存先に再接続後、record IDで重複を防いで再送します。未転送を保存成功とは表示しません。</div>
+      <p class="muted">設定・認証の参照先・通知抑止状態は従来のローカル領域に維持。複数PCから同じ履歴への同時書き込み・自動合算は初版では非対応です。</p>
+    </div>
+    <div class="card"><div class="row"><h2>月別ローテーション・アーカイブ</h2><span class="badge">自動削除なし</span></div>
+      <p>月ごとに分けて保存し、確定月のraw詳細をZIPにします。日別集計は残し、過去のグラフをすぐ表示します。</p>
+      <table><thead><tr><th>対象月</th><th>保存状態</th><th>操作</th></tr></thead><tbody>
+        <tr><td>2026年10月</td><td>記録中 · 日別raw＋月別集計</td><td>確定後にアーカイブ可</td></tr>
+        <tr><td>2026年9月</td><td>ZIP保存済み · 日別集計あり</td><td><button class="demoOpen">対象ファイルを表示</button></td></tr>
+        <tr><td>2026年8月</td><td>確定月 · raw保持中</td><td><button id="archive">ZIPを作成・検証</button></td></tr>
+      </tbody></table>
+      <p><button class="demoOpen">アーカイブフォルダーを開く</button></p>
+      <small>ZIP作成後も元rawは削除しません。自動削除や保持期間変更は対象プレビューと本人承認が必要です。</small>
+    </div>
+  </section>
+  <div id="feedback" role="status" aria-live="polite"></div>
+  <p class="muted"><small>表示の確認用です。フォルダー選択・コピー・Explorer起動・認証・Usage取得は実行しません。</small></p>
+</main>
+<dialog id="migration"><h2>保存先変更のプレビュー</h2><p>このモックでは架空の保存先を表示しています。</p>
+  <table><tbody><tr><th>元</th><td>既定のローカル履歴</td></tr><tr><th>先</th><td>選択したフォルダー\AgentUsageHistory\記録ID</td></tr><tr><th>対象</th><td>64ファイル · 4.8 MB（架空）</td></tr><tr><th>書き込み / 空き容量</th><td>可能 / 12 GB（架空）</td></tr><tr><th>既存内容</th><td>競合なし（架空）</td></tr></tbody></table>
+  <p>コピー → hash・内容検証 → 保存先切替。元の履歴は残します。既存ファイルを上書きしません。</p>
+  <div class="controls"><button id="cancelMigration">キャンセル</button><button id="confirmMigration" class="primary">確認してコピー・切替</button></div>
+</dialog>
+<script>
+const $ = id => document.getElementById(id);
+let uiLanguage = new URLSearchParams(location.search).get("uiLanguage") === "ja" ? "Japanese" : "English";
+function t(ja,en) { return uiLanguage === "Japanese" ? ja : en; }
+const translations = {
+  "エージェント利用状況":"Agent usage",
+  "日別履歴 · 契約枠の消費ペース":"Daily history · Subscription quota pace",
+  "UIモック・すべて架空データ":"UI preview · Synthetic data only",
+  "明暗切替":"Light / dark",
+  "日別履歴":"Daily history", "履歴・保存設定":"History & storage", "外観・言語":"Appearance & language",
+  "サービス":"Service", "アカウント":"Account", "デモ・アカウント":"Demo account", "契約枠":"Quota",
+  "月間枠":"Monthly quota", "月を選択":"Select month", "7日":"7 days", "30日":"30 days", "90日":"90 days",
+  "保存済み":"Saved", "（日本時間） · 単位: pt":"JST (UTC+9) · Unit: percentage points (pt)",
+  "観測できた消費":"Observed consumption", "部分計測（下限）":"Partial (lower bound)", "未計測 ≠ 0":"Unmeasured ≠ 0",
+  "破線: 固定の日目安":"Dashed: fixed daily guidance",
+  "料金・token数ではありません。棒は累積使用率の合計ではなく、同じ契約枠内の観測差分です。reset・plan・単位が変わる区間は別表示にします。":"Not cost or tokens. Bars show observed deltas within one quota, not the sum of cumulative usage percentages. Reset, plan and unit changes remain separate.",
+  "履歴ファイル":"History files", "表示月の集計ファイルをExplorerで選択表示":"Select the displayed month's summary file in Explorer",
+  "保存フォルダーを開く":"Open history folder", "対象ファイルを表示":"Show file in Explorer",
+  "履歴の保存先":"History location",
+  "日別集計・長期履歴・アーカイブを保存。OneDriveも通常のフォルダーとして選べます。":"Store daily summaries, long-term history and archives. OneDrive can be selected like a regular folder.",
+  "（既定のローカル保存先）\\history\\（このPCの記録ID）":"(Default local folder)\\history\\(Writer ID)",
+  "フォルダーを選ぶ…":"Choose folder…", "保存待ち状態を見る":"Preview pending state",
+  "保存待ち · 12件をこのPCのローカルに保持しています。保存先に再接続後、record IDで重複を防いで再送します。未転送を保存成功とは表示しません。":"Pending · 12 records are retained locally on this PC. Reconnect to resend with record-ID deduplication. Pending records are not shown as saved.",
+  "設定・認証の参照先・通知抑止状態は従来のローカル領域に維持。複数PCから同じ履歴への同時書き込み・自動合算は初版では非対応です。":"Settings, credential references and notification deduplication remain local. Concurrent writing and automatic aggregation across PCs are not supported.",
+  "月別ローテーション・アーカイブ":"Monthly rotation & archives", "自動削除なし":"No automatic deletion",
+  "月ごとに分けて保存し、確定月のraw詳細をZIPにします。日別集計は残し、過去のグラフをすぐ表示します。":"Rotate by month and archive completed months as ZIPs. Daily summaries remain available for quick historical charts.",
+  "対象月":"Month", "保存状態":"Storage status", "操作":"Action",
+  "2026年10月":"October 2026", "2026年9月":"September 2026", "2026年8月":"August 2026",
+  "記録中 · 日別raw＋月別集計":"Active · Daily raw + monthly summaries", "確定後にアーカイブ可":"Archive after month ends",
+  "ZIP保存済み · 日別集計あり":"ZIP saved · Summaries retained", "確定月 · raw保持中":"Completed month · Raw retained",
+  "ZIPを作成・検証":"Create & verify ZIP", "アーカイブフォルダーを開く":"Open archive folder",
+  "ZIP作成後も元rawは削除しません。自動削除や保持期間変更は対象プレビューと本人承認が必要です。":"Original raw files are not deleted after archiving. Deletion or retention changes require a preview and your approval.",
+  "表示の確認用です。フォルダー選択・コピー・Explorer起動・認証・Usage取得は実行しません。":"Preview only. No folder selection, copying, Explorer launch, authentication or usage fetching is performed.",
+  "保存先変更のプレビュー":"Preview location change",
+  "このモックでは架空の保存先を表示しています。":"This preview uses fictional folder locations.",
+  "元":"Source", "先":"Destination", "対象":"Files", "書き込み / 空き容量":"Write access / free space", "既存内容":"Existing content",
+  "既定のローカル履歴":"Default local history", "選択したフォルダー\\AgentUsageHistory\\記録ID":"Selected folder\\AgentUsageHistory\\Writer ID",
+  "64ファイル · 4.8 MB（架空）":"64 files · 4.8 MB (synthetic)", "可能 / 12 GB（架空）":"Writable / 12 GB (synthetic)", "競合なし（架空）":"No conflict (synthetic)",
+  "コピー → hash・内容検証 → 保存先切替。元の履歴は残します。既存ファイルを上書きしません。":"Copy → verify hashes and content → switch location. Keep the source. Never overwrite existing files.",
+  "キャンセル":"Cancel", "確認してコピー・切替":"Confirm, copy & switch",
+  "表示言語":"Display language", "システムに合わせる":"Follow system",
+  "初回はWindows表示言語に合わせます。ja系は日本語、それ以外はEnglish。手動選択は保存され、再起動後も維持します。":"Initially follows the Windows display language: Japanese for ja cultures, English otherwise. Your selection is saved and survives restart.",
+  "表示だけの変更です。アカウント・通知抑止・契約枠・記録ID・JST日境界・月曜開始は変わりません。":"Display only. Accounts, notification deduplication, quotas, record IDs, JST day boundaries and Monday weeks are unchanged.",
+  "タスクバー付近にUsage％を表示（既定ON）":"Show usage percentages near the taskbar (on by default)",
+  "標準タスクバーを書き換えず、そのすぐ上に小さな専用表示を置きます。ドラッグで位置調整、ダブルクリックで利用状況を開きます。":"A small dedicated strip sits just above the taskbar; the taskbar itself is not modified. Drag to reposition; double-click to open usage.",
+  "Copilotは月間枠、Codex／Claudeは取得できた週間枠の使用率。日目安の消化率とは別です。未取得は「—」、古い値は明示します。":"Copilot uses its monthly quota; Codex/Claude use a verified weekly quota. This is not daily-guidance usage. Missing values are shown as —; stale values are marked.",
+  "この言語で履歴を見る":"View history in this language", "この言語で保存設定を見る":"View storage in this language",
+  "420px幅の概要プレビュー · 架空データ":"420px overview preview · Synthetic data",
+  "更新":"Refresh", "履歴":"History", "設定":"Settings", "使用済み 36% · 残り 64%":"Used 36% · Remaining 64%",
+  "今日 · 日目安の62%（部分計測）":"Today · 62% of daily guidance (partial)",
+  "日境界: JST (UTC+9) / 週は月曜開始":"Day boundary: JST (UTC+9) / Week starts Monday",
+  "この追加確認は言語選択の位置と英語の幅だけです。既存の履歴・保存機能構成の再承認ではありません。":"Review only the new language selector and English text widths. The previously approved history/storage layout is unchanged."
+};
+const localizedNodes=[];
+const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+while(walker.nextNode()) { const node=walker.currentNode, key=node.textContent.trim(); if(translations[key]) localizedNodes.push([node,key]); }
+function applyLanguage() {
+  document.documentElement.lang=uiLanguage==="Japanese"?"ja":"en";
+  document.title=t("Agent Usage Monitor · 履歴と保存 UI モック","Agent Usage Monitor · History & storage preview");
+  localizedNodes.forEach(([node,key])=>{ node.textContent=t(key,translations[key]); });
+  $("bucket").replaceChildren(new Option($("provider").selectedIndex===0?t("月間枠","Monthly quota"):t("週間枠","Weekly quota")));
+  render(); updatePending();
+}
+const sample = [3.2,2.1,null,0,4.3,5.1,1.8];
+let count = 7, guidance = 100/31, selectedMonth = null;
+function feedback(text) { $("feedback").textContent = text; }
+function showDay(date,value,partial) {
+  const detail = $("detail"); detail.replaceChildren();
+  const title = document.createElement("strong"); title.textContent = date+" · "+(value===null?t("未計測","Unmeasured"):partial?t("部分計測（下限）","Partial (lower bound)"):t("観測時点まで計測","Complete to observation")); detail.append(title);
+  const stats = document.createElement("div"); stats.className = "stats";
+  [[t("観測できた消費","Observed consumption"),value===null?"—":value.toFixed(2)+" pt"],[t("固定の日目安","Daily guidance"),guidance.toFixed(2)+" pt"],[t("日目安の消化率","Guidance used"),value===null?"—":(value/guidance*100).toFixed(0)+"%"],[t("最終観測","Last observation"),value===null?t("記録なし","No record"):"08:10 JST"]].forEach(([label,value])=>{
+    const item=document.createElement("div"),small=document.createElement("small"),strong=document.createElement("strong");
+    small.textContent=label; strong.textContent=value; item.append(small,strong); stats.append(item);
+  }); detail.append(stats);
+  if (partial || value===null) { const note=document.createElement("p"); note.className="muted"; note.textContent=value===null?t("記録がないためゼロと扱いません。","Missing observations are not treated as zero."):t("起動前・日境界未観測の消費は分割せず、観測できた分だけを表示。","Unobserved startup/day-boundary usage is not split; only observed consumption is shown."); detail.append(note); }
+}
+function render() {
+  $("bars").replaceChildren(); const total=selectedMonth?new Date(Number(selectedMonth.slice(0,4)),Number(selectedMonth.slice(5)),0).getDate():count;
+  const dates=Array.from({length:total},(_,i)=>selectedMonth?`${selectedMonth}-${String(i+1).padStart(2,"0")}`:new Date(Date.UTC(2026,9,12-total+1+i)).toISOString().slice(0,10));
+  dates.forEach((date,i)=>{
+    const index=i-(total-7), value=index>=0?sample[index]:null, partial=index===4;
+    const cell=document.createElement("button"); cell.className="barcell";
+    const tip=`${date} · ${value===null?t("未計測","Unmeasured"):value+" pt"+(partial?t("（部分計測・下限）"," (partial, lower bound)"):"")} · ${t("日目安","Daily guidance")} ${guidance.toFixed(2)} pt`;
+    cell.title=tip; cell.setAttribute("aria-label",tip);
+    const bar=document.createElement("span"); bar.className="bar"+(value===null?" missing":partial?" partial":"");
+    if(value!==null) bar.style.height=Math.max(1,value*10)+"%"; cell.append(bar);
+    if(total<=31 && (total<=7 || i%5===0)) { const label=document.createElement("small"); label.textContent=date.slice(5); cell.append(label); }
+    cell.addEventListener("click",()=>showDay(date,value,partial)); $("bars").append(cell);
+  });
+  $("rangeLabel").textContent=dates[0].replaceAll("-","/")+" – "+dates.at(-1).replaceAll("-","/");
+  $("guide").style.bottom=(guidance*10)+"%"; $("guideLabel").textContent=t("日目安 ","Daily guidance ")+guidance.toFixed(2)+" pt";
+  showDay(dates.at(-1),sample.at(-1),false);
+}
+function tab(storage) { $("appearance").hidden=true; $("languageTab").setAttribute("aria-selected","false"); $("storage").hidden=!storage; $("history").hidden=storage; $("historyTab").setAttribute("aria-selected",String(!storage)); $("storageTab").setAttribute("aria-selected",String(storage)); feedback(""); }
+$("languageTab").addEventListener("click",()=>{ $("history").hidden=true; $("storage").hidden=true; $("appearance").hidden=false; ["historyTab","storageTab"].forEach(id=>$(id).setAttribute("aria-selected","false")); $("languageTab").setAttribute("aria-selected","true"); });
+$("language").value=uiLanguage;
+$("language").addEventListener("change",()=>{ uiLanguage=$("language").value==="System"?(navigator.language.toLowerCase().startsWith("ja")?"Japanese":"English"):$("language").value; applyLanguage(); feedback(t("モックの表示だけを変更しました。実設定は保存しません。","Preview language changed. No application setting was saved.")); });
+$("toHistory").addEventListener("click",()=>tab(false)); $("toStorage").addEventListener("click",()=>tab(true));
+$("stripEnabled").addEventListener("change",()=>{ $("stripPreview").hidden=!$("stripEnabled").checked; });
+$("historyTab").addEventListener("click",()=>tab(false)); $("storageTab").addEventListener("click",()=>tab(true));
+$("theme").addEventListener("click",()=>document.documentElement.setAttribute("data-theme",document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"));
+document.querySelectorAll(".range").forEach(button=>button.addEventListener("click",()=>{ count=Number(button.dataset.days); selectedMonth=null; document.querySelectorAll(".range").forEach(b=>b.classList.toggle("active",b===button)); render(); }));
+$("month").addEventListener("change",()=>{ if(!$("month").value)return; selectedMonth=$("month").value; document.querySelectorAll(".range").forEach(b=>b.classList.remove("active")); render(); });
+$("provider").addEventListener("change",()=>{ const monthly=$("provider").selectedIndex===0; guidance=100/(monthly?31:7); $("bucket").replaceChildren(new Option(monthly?t("月間枠","Monthly quota"):t("週間枠","Weekly quota"))); render(); });
+document.querySelectorAll(".demoOpen").forEach(button=>button.addEventListener("click",()=>feedback(t("モックのため実際のファイル／フォルダーは開きません。本体ではアプリが使用した正確なパスだけを開きます。","Preview only: no real file or folder is opened. The app will open only generated history paths."))));
+$("choose").addEventListener("click",()=>$("migration").showModal());
+$("cancelMigration").addEventListener("click",()=>{ $("migration").close(); feedback(t("キャンセル（モック）：保存先は変更していません。","Cancelled (preview): location unchanged.")); });
+$("confirmMigration").addEventListener("click",()=>{ $("migration").close(); $("location").textContent=t("（選択したフォルダー）\\AgentUsageHistory\\（このPCの記録ID）","(Selected folder)\\AgentUsageHistory\\(Writer ID)"); feedback(t("切替完了状態のプレビューです。実際のコピーや検証は実行していません。","Preview of a completed switch. No actual copy or verification was performed.")); });
+function updatePending() { ["saveBadge","storageSaveBadge"].forEach(id=>{ $(id).textContent=$("pending").hidden?t("保存済み","Saved"):t("保存待ち · 12件","Pending · 12 records"); $(id).className=$("pending").hidden?"badge ok":"badge warning"; }); }
+$("offline").addEventListener("click",()=>{ $("pending").hidden=!$("pending").hidden; updatePending(); });
+$("archive").addEventListener("click",()=>feedback(t("ZIP作成・検証完了の表示例（モック）。実際のファイル作成・検証・削除は行いません。","Preview of ZIP creation/verification. No actual file creation, verification or deletion.")));
+applyLanguage();
+if(new URLSearchParams(location.search).get("panel")==="appearance") $("languageTab").click();
+if(new URLSearchParams(location.search).get("previewStrip")==="true") { $("stripEnabled").checked=true; $("stripPreview").hidden=false; }
+</script>
+</body>
+</html>

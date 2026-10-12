@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="AgentUsage" xml:space="preserve"><value>エージェント利用状況</value></data>
+  <data name="Brand" xml:space="preserve"><value>Agent Usage Monitor</value></data>
+  <data name="HistoryTitle" xml:space="preserve"><value>日別履歴 · Agent Usage Monitor</value></data>
+  <data name="History" xml:space="preserve"><value>履歴</value></data>
+  <data name="HistoryStorage" xml:space="preserve"><value>履歴・保存設定</value></data>
+  <data name="AppearanceLanguage" xml:space="preserve"><value>外観・言語</value></data>
+  <data name="DisplayLanguage" xml:space="preserve"><value>表示言語</value></data>
+  <data name="FollowSystem" xml:space="preserve"><value>システムに合わせる</value></data>
+  <data name="Japanese" xml:space="preserve"><value>日本語</value></data>
+  <data name="English" xml:space="preserve"><value>English</value></data>
+  <data name="LanguageExplanation" xml:space="preserve"><value>初回はWindows表示言語に合わせます。選択は保存され、再起動後も維持します。</value></data>
+  <data name="LanguageInvariantNote" xml:space="preserve"><value>表示だけを変更します。アカウント・契約枠・記録ID・通知抑止は変わりません。</value></data>
+  <data name="Refresh" xml:space="preserve"><value>更新</value></data>
+  <data name="Reload" xml:space="preserve"><value>再読み込み</value></data>
+  <data name="Settings" xml:space="preserve"><value>設定</value></data>
+  <data name="Save" xml:space="preserve"><value>保存</value></data>
+  <data name="Cancel" xml:space="preserve"><value>キャンセル</value></data>
+  <data name="Confirm" xml:space="preserve"><value>確認</value></data>
+  <data name="Close" xml:space="preserve"><value>閉じる</value></data>
+  <data name="Service" xml:space="preserve"><value>サービス</value></data>
+  <data name="AccountHash" xml:space="preserve"><value>アカウント（identity hash）</value></data>
+  <data name="Quota" xml:space="preserve"><value>契約枠</value></data>
+  <data name="Range" xml:space="preserve"><value>表示範囲</value></data>
+  <data name="RangeDays" xml:space="preserve"><value>{0}日</value></data>
+  <data name="MonthInput" xml:space="preserve"><value>任意の月（yyyy-MM）</value></data>
+  <data name="ShowMonth" xml:space="preserve"><value>月を表示</value></data>
+  <data name="PeriodDefinition" xml:space="preserve"><value>期間の定義（reset・plan・分母・単位が異なる区間は合算しません）</value></data>
+  <data name="PlanUnknown" xml:space="preserve"><value>プラン未確認</value></data>
+  <data name="UnitUnknown" xml:space="preserve"><value>単位不明</value></data>
+  <data name="PercentagePoints" xml:space="preserve"><value>pt</value></data>
+  <data name="Credits" xml:space="preserve"><value>クレジット</value></data>
+  <data name="Requests" xml:space="preserve"><value>回</value></data>
+  <data name="PercentagePointsExplanation" xml:space="preserve"><value>ptは同一枠内のpercentage pointsです。料金・token数ではありません。</value></data>
+  <data name="CalendarExplanation" xml:space="preserve"><value>日境界: JST (UTC+9) / 週は月曜開始</value></data>
+  <data name="HistorySubtitle" xml:space="preserve"><value>契約枠の観測差分 · 日付はJST · 料金やtoken数ではありません</value></data>
+  <data name="HistoryLegend" xml:space="preserve"><value>塗り: 観測消費　斜線: 部分計測／未計測　破線: 固定の日目安</value></data>
+  <data name="HistoryNotes" xml:space="preserve"><value>日境界をまたぐ差分は推測分割しません。部分計測は観測できた下限です。
+差分0はAPI丸めの可能性があり、無消費の保証ではありません。</value></data>
+  <data name="Unmeasured" xml:space="preserve"><value>未計測</value></data>
+  <data name="Partial" xml:space="preserve"><value>部分計測（下限）</value></data>
+  <data name="CompleteToObservation" xml:space="preserve"><value>観測時点まで計測</value></data>
+  <data name="ObservedConsumption" xml:space="preserve"><value>観測できた消費</value></data>
+  <data name="DailyGuidance" xml:space="preserve"><value>固定の日目安</value></data>
+  <data name="GuidanceUsed" xml:space="preserve"><value>日目安の消化率</value></data>
+  <data name="LastObservation" xml:space="preserve"><value>最終観測</value></data>
+  <data name="NoRecord" xml:space="preserve"><value>記録なし</value></data>
+  <data name="Changes" xml:space="preserve"><value>変化</value></data>
+  <data name="DayBoundaryUnallocated" xml:space="preserve"><value>日境界未配分</value></data>
+  <data name="ObservationGap" xml:space="preserve"><value>観測間隔の欠落</value></data>
+  <data name="DayDetail" xml:space="preserve"><value>{0} · {1}
+観測できた消費: {2} {3}　固定の日目安: {4}　日目安の消化率: {5}%
+最終観測: {6} JST</value></data>
+  <data name="HistoryLoading" xml:space="preserve"><value>履歴を読み込んでいます…</value></data>
+  <data name="NoRecordedQuota" xml:space="preserve"><value>まだ記録された契約枠がありません。</value></data>
+  <data name="HistoryLocation" xml:space="preserve"><value>履歴の保存先</value></data>
+  <data name="Saved" xml:space="preserve"><value>保存済み</value></data>
+  <data name="PendingRecords" xml:space="preserve"><value>保存待ち · {0:N0}件
+{1}</value></data>
+  <data name="ChooseFolder" xml:space="preserve"><value>フォルダーを選ぶ…</value></data>
+  <data name="FolderPickerTitle" xml:space="preserve"><value>履歴の保存先フォルダー</value></data>
+  <data name="OpenHistoryFolder" xml:space="preserve"><value>保存フォルダーを開く</value></data>
+  <data name="ShowHistoryFile" xml:space="preserve"><value>対象ファイルを表示</value></data>
+  <data name="OpenArchiveFolder" xml:space="preserve"><value>アーカイブフォルダーを開く</value></data>
+  <data name="ShowArchiveFile" xml:space="preserve"><value>対象ZIPを表示</value></data>
+  <data name="StorageNotes" xml:space="preserve"><value>通常のWindows folder / OneDriveを選べます。設定・通知抑止・保存待ちのjournalはローカルに維持。
+複数PCの同時書き込み・自動合算は非対応です。</value></data>
+  <data name="ArchiveHeading" xml:space="preserve"><value>月別ローテーション・アーカイブ</value></data>
+  <data name="ArchiveNotes" xml:space="preserve"><value>対象月は『履歴』の月欄で指定。現在月はZIP化しません。
+ZIP作成後も元rawと月別集計を残します。自動削除はありません。</value></data>
+  <data name="CreateVerifyArchive" xml:space="preserve"><value>選択月のZIPを作成・検証</value></data>
+  <data name="VerifyArchive" xml:space="preserve"><value>選択月のZIPを再検証</value></data>
+  <data name="ArchiveConfirmationTitle" xml:space="preserve"><value>アーカイブの確認</value></data>
+  <data name="ArchiveConfirmation" xml:space="preserve"><value>{0}のrawをZIPに保存し、内容を検証します。
+元rawと日別集計は削除しません。</value></data>
+  <data name="ArchiveCreatedVerified" xml:space="preserve"><value>作成・検証済み: {0}</value></data>
+  <data name="ArchiveVerified" xml:space="preserve"><value>この操作で検証済み: {0}</value></data>
+  <data name="OpenDoesNotVerify" xml:space="preserve"><value>開く操作だけではhash検証済みと表示しません。保存先変更はpreview後の確認が必要で、元データを残します。</value></data>
+  <data name="MigrationTitle" xml:space="preserve"><value>保存先変更のプレビュー</value></data>
+  <data name="MigrationPreview" xml:space="preserve"><value>元: {0}
+先: {1}
+対象: {2:N0}ファイル · コピー量 {3:N0} bytes
+空き容量: {4}
+コピー → hash・内容検証 → 切替。元の履歴は残し、既存内容を上書きしません。</value></data>
+  <data name="FreeSpaceUnknown" xml:space="preserve"><value>確認できません</value></data>
+  <data name="MigrationCompleted" xml:space="preserve"><value>コピーと内容検証が完了し、保存先を切り替えました。元データは残しています。</value></data>
+  <data name="OperationFailed" xml:space="preserve"><value>操作を完了できませんでした（{0}）。</value></data>
+  <data name="UnknownError" xml:space="preserve"><value>操作に失敗しました（{0}）。</value></data>
+  <data name="HistoryUnavailable" xml:space="preserve"><value>履歴の保存先を利用できませんでした（{0}）。</value></data>
+  <data name="MonthInvalid" xml:space="preserve"><value>対象月をyyyy-MM形式で入力してください。</value></data>
+  <data name="RangeMissing" xml:space="preserve"><value>履歴の表示範囲がありません。</value></data>
+  <data name="CatalogMissing" xml:space="preserve"><value>履歴のカタログがありません。</value></data>
+  <data name="HistoryResponseMissing" xml:space="preserve"><value>履歴の応答がありません。</value></data>
+  <data name="FolderRequired" xml:space="preserve"><value>保存先の絶対パスを選択してください。</value></data>
+  <data name="PreviewRequired" xml:space="preserve"><value>保存先のプレビューを再確認してください。</value></data>
+  <data name="PreviewMissing" xml:space="preserve"><value>保存先のプレビューがありません。</value></data>
+  <data name="FolderNotWritable" xml:space="preserve"><value>保存先へ書き込めません。</value></data>
+  <data name="MonthRequired" xml:space="preserve"><value>対象月を選択してください。</value></data>
+  <data name="OpenLocationRequired" xml:space="preserve"><value>開く履歴の場所を選択してください。</value></data>
+  <data name="OperationNotAllowed" xml:space="preserve"><value>履歴の操作が許可されていません。</value></data>
+  <data name="FileMissing" xml:space="preserve"><value>対象の履歴ファイルはまだ作成されていません。</value></data>
+  <data name="FolderMissing" xml:space="preserve"><value>対象の履歴フォルダーはまだ作成されていません。</value></data>
+  <data name="ExplorerFailed" xml:space="preserve"><value>Explorerを起動できませんでした。権限・保存先を確認してください。</value></data>
+  <data name="InvalidHistoryData" xml:space="preserve"><value>履歴データが不正、または未対応です。空の履歴へ置換していません。</value></data>
+  <data name="HistoryTooLarge" xml:space="preserve"><value>履歴ファイルが対応サイズを超えています。保存待ちデータは保持します。</value></data>
+  <data name="WriterMismatch" xml:space="preserve"><value>別の書込主体、または未対応schemaの履歴です。</value></data>
+  <data name="ExistingHistoryUnavailable" xml:space="preserve"><value>既存の履歴フォルダーを利用できません。空の履歴を勝手に作成していません。</value></data>
+  <data name="MigrationOverlap" xml:space="preserve"><value>元と先の履歴フォルダーは重複できません。</value></data>
+  <data name="MigrationConflict" xml:space="preserve"><value>保存先の既存内容と競合しています。上書きしていません。</value></data>
+  <data name="MigrationStale" xml:space="preserve"><value>プレビュー後に履歴が変わりました。再度プレビューしてください。</value></data>
+  <data name="MigrationExtraFiles" xml:space="preserve"><value>未知のファイルがあります。別の空フォルダーを選択してください。</value></data>
+  <data name="MigrationSpace" xml:space="preserve"><value>コピー先の空き容量が不足しています。</value></data>
+  <data name="MigrationNotReady" xml:space="preserve"><value>保存先のプレビューはコピーできる状態ではありません。</value></data>
+  <data name="MigrationVerifyFailed" xml:space="preserve"><value>コピー検証に失敗しました。保存先は切り替えていません。</value></data>
+  <data name="CurrentMonthArchive" xml:space="preserve"><value>現在月はまだアーカイブできません。</value></data>
+  <data name="PendingArchive" xml:space="preserve"><value>保存待ちデータを再送してからアーカイブしてください。</value></data>
+  <data name="ArchivedMonthSealed" xml:space="preserve"><value>この月はアーカイブ済みです。既存ZIPは上書きしていません。</value></data>
+  <data name="NoMonthRecorded" xml:space="preserve"><value>この月の履歴は記録されていません。</value></data>
+  <data name="NoRawRecorded" xml:space="preserve"><value>この月のraw記録がありません。</value></data>
+  <data name="ArchiveInvalid" xml:space="preserve"><value>アーカイブ検証に失敗しました。元データは保持します。</value></data>
+  <data name="StorageUnavailable" xml:space="preserve"><value>履歴の保存先を利用できません。保存待ちデータはローカルに保持します。</value></data>
+  <data name="LocalJournalUnavailable" xml:space="preserve"><value>ローカルjournalを保存できません。稼働状態のrawは保持します。</value></data>
+  <data name="UnsupportedLinkedFolder" xml:space="preserve"><value>junction/symlink経由の保存は未対応です。通常のフォルダーを選択してください。</value></data>
+  <data name="Notifications" xml:space="preserve"><value>通知</value></data>
+  <data name="Connections" xml:space="preserve"><value>接続</value></data>
+  <data name="AppearanceStartup" xml:space="preserve"><value>外観・起動</value></data>
+  <data name="UsedRemaining" xml:space="preserve"><value>使用済み {0:0.##}% · 残り {1:0.##}%</value></data>
+  <data name="Stale" xml:space="preserve"><value>古い値</value></data>
+  <data name="Fetched" xml:space="preserve"><value>取得済み</value></data>
+  <data name="LastConfirmed" xml:space="preserve"><value>最終確認値</value></data>
+  <data name="UnknownUsage" xml:space="preserve"><value>使用量不明</value></data>
+  <data name="Unlimited" xml:space="preserve"><value>上限なし（API報告）</value></data>
+  <data name="ResetAt" xml:space="preserve"><value>リセット {0} JST</value></data>
+  <data name="ResetUnknown" xml:space="preserve"><value>リセット日時不明</value></data>
+  <data name="Daily" xml:space="preserve"><value>今日</value></data>
+  <data name="Weekly" xml:space="preserve"><value>今週</value></data>
+  <data name="GuidanceExceedance" xml:space="preserve"><value>{0} · 目安を超過</value></data>
+  <data name="GuidanceUsage" xml:space="preserve"><value>目安の{0:0}%（{1}）</value></data>
+  <data name="ConsumptionOfGuidance" xml:space="preserve"><value>{0} / {1} {2}</value></data>
+  <data name="FixedAllocation" xml:space="preserve"><value>固定配分：日 {0:0.##} / 週 {1:0.##} {2}</value></data>
+  <data name="GuidanceUnknown" xml:space="preserve"><value>日・週の目安：総枠または期間が未取得</value></data>
+  <data name="ProviderMissing" xml:space="preserve"><value>未取得 · 接続設定で対象アカウントを指定してください。</value></data>
+  <data name="ClaudeMissing" xml:space="preserve"><value>未取得 · 公式loginと数値スナップショット連携が必要です。</value></data>
+  <data name="RetrievalStatus" xml:space="preserve"><value>取得状態: {0} · {1}</value></data>
+  <data name="PollingFooter" xml:space="preserve"><value>{0:0}分ごとに更新 · 日付はJST / 週は月曜開始</value></data>
+  <data name="DemoFooter" xml:space="preserve"><value>架空データのデモ · 接続・認証・保存は行いません</value></data>
+  <data name="MainTitle" xml:space="preserve"><value>エージェント利用状況</value></data>
+  <data name="Exit" xml:space="preserve"><value>終了</value></data>
+  <data name="UpdateCheck" xml:space="preserve"><value>アプリの更新を確認</value></data>
+  <data name="StartAtLogon" xml:space="preserve"><value>ログオン時に常駐</value></data>
+  <data name="StartupEnableConfirm" xml:space="preserve"><value>このアプリをログオン時にトレイで起動しますか？</value></data>
+  <data name="StartupDisableConfirm" xml:space="preserve"><value>このアプリのログオン時起動を解除しますか？</value></data>
+  <data name="InitializationFailed" xml:space="preserve"><value>起動できませんでした。既に実行中の場合はトレイを確認してください。
+{0}</value></data>
+  <data name="PanelStartFailed" xml:space="preserve"><value>画面を起動できませんでした。実行ファイルを確認してください。</value></data>
+  <data name="CommunicationFailed" xml:space="preserve"><value>常駐本体との通信に失敗しました。トレイから開き直してください。</value></data>
+  <data name="CommunicationStopped" xml:space="preserve"><value>画面との通信を停止しました。アプリを再起動してください。</value></data>
+  <data name="CommunicationTimeout" xml:space="preserve"><value>画面との通信がタイムアウトしました。</value></data>
+  <data name="RefreshFailed" xml:space="preserve"><value>更新を要求できませんでした。トレイから開き直してください。</value></data>
+  <data name="SaveFailed" xml:space="preserve"><value>設定を保存できませんでした（{0}）。</value></data>
+  <data name="AuthenticationRequired" xml:space="preserve"><value>公式CLIでloginしてください。</value></data>
+  <data name="AccountMismatch" xml:space="preserve"><value>選択した固定アカウントと一致しません。</value></data>
+  <data name="MissingCredential" xml:space="preserve"><value>選択した資格情報を利用できません。</value></data>
+  <data name="ProviderError" xml:space="preserve"><value>Usage取得に失敗しました（{0}）。最終確認値は保持します。</value></data>
+  <data name="NotificationUsage" xml:space="preserve"><value>{0} · {1}: 契約枠の使用率が{2}に達しました。</value></data>
+  <data name="NotificationGuidance" xml:space="preserve"><value>{0} · {1}: {2}の目安を超えています（{3}）。</value></data>
+  <data name="NotificationReset" xml:space="preserve"><value>{0} · {1}: 契約枠のリセットを確認しました。</value></data>
+  <data name="UpdateTitle" xml:space="preserve"><value>アプリ更新</value></data>
+  <data name="UpdateChecking" xml:space="preserve"><value>アプリの安定版を確認しています。</value></data>
+  <data name="UpdateAvailable" xml:space="preserve"><value>バージョン {0} を確認しました。</value></data>
+  <data name="UpdateCurrent" xml:space="preserve"><value>現在のバージョン {0}。新しい安定版はありません。</value></data>
+  <data name="UpdateUnavailable" xml:space="preserve"><value>公開済みの安定版を確認できませんでした。リリースなし／アクセス不可の可能性があります。</value></data>
+  <data name="UpdateDownloadConfirm" xml:space="preserve"><value>バージョン {0} をダウンロードして更新しますか？
+画面表示中は適用を延期し、画面を閉じた後に安全に終了して再起動します。</value></data>
+  <data name="UpdateDownloading" xml:space="preserve"><value>新しい安定版をダウンロード・検証しています。</value></data>
+  <data name="UpdateDeferred" xml:space="preserve"><value>画面表示中または接続検出中のため更新を延期しています。</value></data>
+  <data name="UpdateApplyConfirm" xml:space="preserve"><value>検証済みの更新を適用しますか？</value></data>
+  <data name="UpdateRestart" xml:space="preserve"><value>検証済みの更新を適用して再起動します。</value></data>
+  <data name="UpdateFailed" xml:space="preserve"><value>更新確認・適用に失敗しました（{0}）。Usageと保存済み設定は変更しません。</value></data>
+  <data name="PortableUpdate" xml:space="preserve"><value>ポータブル版は自動置換しません。公式ReleasesからインストーラーまたはZIPを取得してください。</value></data>
+  <data name="UpdateProfileBlocked" xml:space="preserve"><value>検証プロファイルではアプリのインストール更新を実行しません。
+更新確認のみ: {0}</value></data>
+  <data name="ShowUsageStrip" xml:space="preserve"><value>小型表示を表示</value></data>
+  <data name="UsageStripNotes" xml:space="preserve"><value>タスクバーの上の小さなnative表示。ドラッグで位置調整、ダブルクリックで利用状況を開きます。Copilot月間・Codex/Claude週間。未取得と古い値を0扱いしません。</value></data>
+  <data name="UsageStripAmbiguous" xml:space="preserve"><value>複数の枠があります。履歴でアカウント・枠を確認してください。</value></data>
+  <data name="MonthlyQuota" xml:space="preserve"><value>月間枠</value></data>
+  <data name="WeeklyQuota" xml:space="preserve"><value>週間枠</value></data>
+  <data name="ShortQuota" xml:space="preserve"><value>短期枠</value></data>
+  <data name="UnknownQuotaWindow" xml:space="preserve"><value>期間未確認の枠</value></data>
+  <data name="QuotaDetails" xml:space="preserve"><value>取得元・枠の詳細</value></data>
+  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.##} {1} · 分母未取得</value></data>
+  <data name="CreditsApiValue" xml:space="preserve"><value>credits_used（API値）{0:0.##} · 単位換算・枠の合算なし</value></data>
+  <data name="MainSubtitle" xml:space="preserve"><value>使用量・残量と、日・週の目安</value></data>
+  <data name="UpdateIdle" xml:space="preserve"><value>アプリ更新はまだ確認していません。</value></data>
+  <data name="UpdateDisabled" xml:space="preserve"><value>自動更新は無効です。手動の更新確認を利用できます。</value></data>
+  <data name="FailureUnauthorized" xml:space="preserve"><value>認証の期限切れ・無効。公式CLIでログインを確認してください。</value></data>
+  <data name="FailureForbidden" xml:space="preserve"><value>アクセス拒否。契約・組織ポリシー・SSO承認を確認してください。</value></data>
+  <data name="FailureNetwork" xml:space="preserve"><value>ネットワークに接続できません。接続後に再確認してください。</value></data>
+  <data name="FailureTimeout" xml:space="preserve"><value>取得がタイムアウトしました。時間を置いて再確認してください。</value></data>
+  <data name="FailureSchema" xml:space="preserve"><value>応答の形式・利用可能な枠を確認できません。</value></data>
+  <data name="FailureRateLimited" xml:space="preserve"><value>取得回数が制限されています。指定された待機時間後に再確認します。</value></data>
+  <data name="FailureServer" xml:space="preserve"><value>サービス側のエラーです。時間を置いて再確認してください。</value></data>
+  <data name="FailureSnapshot" xml:space="preserve"><value>数値スナップショットがありません。statusline連携を確認してください。</value></data>
+  <data name="FailureCli" xml:space="preserve"><value>公式CLIを起動できません。インストール・実行パスを確認してください。</value></data>
+  <data name="FailureStorage" xml:space="preserve"><value>ローカルファイルを読み取れません。アクセス権・保存先を確認してください。</value></data>
+  <data name="ClaudeCliMissing" xml:space="preserve"><value>Claude CLIが見つかりません。公式CLIのインストールが必要です。</value></data>
+  <data name="ClaudeLoginRequired" xml:space="preserve"><value>CLIを検出しました。ログインが必要です。公式CLIで claude auth login を実行してください。</value></data>
+  <data name="ClaudeScalarRequired" xml:space="preserve"><value>ログインを確認しました。本人確認済みのstatusline数値連携が必要です。</value></data>
+  <data name="GithubCliMissing" xml:space="preserve"><value>ghが見つかりません。Copilot CLIだけの選択資格情報は正確に確認できないため、自動接続は未対応です。gh auth login または詳細設定をご利用ください。</value></data>
+  <data name="CodexFileMissing" xml:space="preserve"><value>auth.jsonを確認できません。未ログイン／keyring等の別認証方式は自動接続未対応です。codex login status で確認してください。認証方式はアプリから変更しません。</value></data>
+  <data name="CodexLoginRequired" xml:space="preserve"><value>Codex CLIを検出しました。ログインが必要です。公式CLIで codex login を実行してください。</value></data>
+  <data name="CodexNotSubscription" xml:space="preserve"><value>選択した認証はChatGPT契約枠ではありません。APIキーの費用はこの契約枠表示の対象外です。</value></data>
+  <data name="CodexStoreUnsupported" xml:space="preserve"><value>keyring・auto等の認証元は選択account_idを照合できないため未対応です。codex login status で確認してください。</value></data>
+  <data name="DiscoveryTimeout" xml:space="preserve"><value>検出がタイムアウトしました。再検出でやり直せます。</value></data>
+  <data name="DiscoveryCancelled" xml:space="preserve"><value>検出をキャンセルしました。保存した設定は維持します。</value></data>
+  <data name="DiscoveryReady" xml:space="preserve"><value>公式ログインと利用可能な枠を確認しました。</value></data>
+  <data name="DiscoveryUnknown" xml:space="preserve"><value>選択した認証方式を確認できません。公式CLIでログインを確認してください。</value></data>
+  <data name="ConnectionDisabled" xml:space="preserve"><value>本人設定で取得は無効です。再起動しても自動で有効にしません。</value></data>
+  <data name="ConnectionConfirm" xml:space="preserve"><value>以前の未設定サービス · 自動設定するか一度だけ確認が必要です。</value></data>
+  <data name="ConnectionDiscovering" xml:space="preserve"><value>現在の公式CLIログインを検出しています。</value></data>
+  <data name="ConnectionAutomatic" xml:space="preserve"><value>自動設定済み · 保存したアカウントを固定して取得します。</value></data>
+  <data name="ConnectionManual" xml:space="preserve"><value>手動設定を保持しています。</value></data>
+  <data name="ConnectionPending" xml:space="preserve"><value>未取得 · 現在の公式CLIログインを確認します。</value></data>
+  <data name="OpenReleasePageConfirm" xml:space="preserve"><value>公式Releasesページを開きますか？</value></data>
+  <data name="SettingsTitle" xml:space="preserve"><value>設定 · Agent Usage Monitor</value></data>
+  <data name="EnableQuotaNotifications" xml:space="preserve"><value>この枠の通知を有効にする</value></data>
+  <data name="NotifyDaily" xml:space="preserve"><value>日別目安を超えたら通知</value></data>
+  <data name="NotifyWeekly" xml:space="preserve"><value>週別目安を超えたら通知</value></data>
+  <data name="NotifyReset" xml:space="preserve"><value>枠のリセットを通知</value></data>
+  <data name="NotifySteps" xml:space="preserve"><value>使用率の刻み通知</value></data>
+  <data name="FetchCopilot" xml:space="preserve"><value>GitHub Copilot を取得</value></data>
+  <data name="FetchCodex" xml:space="preserve"><value>Codex を取得</value></data>
+  <data name="FetchClaude" xml:space="preserve"><value>Claude Code の数値スナップショットを取得</value></data>
+  <data name="CodexFallback" xml:space="preserve"><value>公式Codex CLIによる限定フォールバック</value></data>
+  <data name="AutoUpdateOption" xml:space="preserve"><value>起動時に安定版を確認し、自動更新する（インストーラー版）</value></data>
+  <data name="CancelDetection" xml:space="preserve"><value>検出をキャンセル</value></data>
+  <data name="UnsavedChanges" xml:space="preserve"><value>未保存の変更あり</value></data>
+  <data name="UnsavedConfirm" xml:space="preserve"><value>未保存の変更があります。保存して閉じますか？</value></data>
+  <data name="NotificationQuota" xml:space="preserve"><value>設定するサービス・枠</value></data>
+  <data name="DefaultQuota" xml:space="preserve"><value>既定（すべての未設定枠）</value></data>
+  <data name="StepInput" xml:space="preserve"><value>刻み（使用率pt・1〜100）</value></data>
+  <data name="ThresholdInput" xml:space="preserve"><value>指定しきい値（%・カンマ区切り / 空欄で無効）</value></data>
+  <data name="NotificationNotes" xml:space="preserve"><value>固定配分。未使用分の繰り越し・残量による再配分はしません。
+日付は日本時間、週は月曜開始。記録がない分は未計測。
+同じ通知はアカウント・枠・期間・ルールごとに一度です。</value></data>
+  <data name="ConnectionIntro" xml:space="preserve"><value>公式CLIの現在のログインを利用
+初回に確認できたサービスは自動設定して取得を開始します。
+保存後は別アカウントへ勝手に切り替えません。</value></data>
+  <data name="CandidateNote" xml:space="preserve"><value>自動検出した候補を採用しても、保存するまで接続設定は変更しません。</value></data>
+  <data name="LegacyConnectionNote" xml:space="preserve"><value>以前の未設定サービスについて
+旧版は初期状態と本人による無効化を区別できません。保存済み接続・通知・履歴は維持します。</value></data>
+  <data name="LegacyEnable" xml:space="preserve"><value>未設定サービスを自動設定する（保存後）</value></data>
+  <data name="LegacyKeep" xml:space="preserve"><value>未設定のまま使う（保存後）</value></data>
+  <data name="DetectAgain" xml:space="preserve"><value>再検出</value></data>
+  <data name="CheckState" xml:space="preserve"><value>状態を再確認</value></data>
+  <data name="UseCandidate" xml:space="preserve"><value>確認した候補を使用（保存後）</value></data>
+  <data name="CandidateConfirm" xml:space="preserve"><value>保存した接続を、確認した候補へ変更しますか？
+保存：{0}
+候補：{1}
+適用は「変更を保存」の後です。</value></data>
+  <data name="GithubLoginInput" xml:space="preserve"><value>照合するGitHubログイン名</value></data>
+  <data name="GithubTargetInput" xml:space="preserve"><value>Windows資格情報の正確なターゲット（空欄なら選択済みgh認証）</value></data>
+  <data name="CodexEmailInput" xml:space="preserve"><value>照合するCodexアカウントのメール</value></data>
+  <data name="CodexHomeInput" xml:space="preserve"><value>公式CLIのCODEX_HOME</value></data>
+  <data name="CodexExecutableInput" xml:space="preserve"><value>codex.exe（限定フォールバック用・絶対パス）</value></data>
+  <data name="CodexFallbackNote" xml:space="preserve"><value>直接取得の認証・スキーマ失敗時だけ公式app-serverを期限付きで使用します。推論は呼びません。</value></data>
+  <data name="ClaudeFileInput" xml:space="preserve"><value>scalar-onlyスナップショットのパス</value></data>
+  <data name="ClaudeLabelInput" xml:space="preserve"><value>本人が確認したアカウントラベル</value></data>
+  <data name="ClaudeNote" xml:space="preserve"><value>本人が公式CLIで認証・アカウントを確認してください。
+既存statuslineを変更せず、独自OAuthやダミー推論は使いません。</value></data>
+  <data name="ConnectionAdvanced" xml:space="preserve"><value>詳細設定 · 手入力・認証元</value></data>
+  <data name="CredentialNotes" xml:space="preserve"><value>パス・アカウント設定のみ保存します。トークン入力・独自ログインはありません。
+CLIの認証復旧は公式CLIで行ってください。既存Claude設定は自動変更しません。</value></data>
+  <data name="Appearance" xml:space="preserve"><value>外観</value></data>
+  <data name="Dark" xml:space="preserve"><value>ダーク</value></data>
+  <data name="Light" xml:space="preserve"><value>ライト</value></data>
+  <data name="StartupNote" xml:space="preserve"><value>ログオン時起動は本人の選択です。初期状態では有効にしません。</value></data>
+  <data name="UpdateBehavior" xml:space="preserve"><value>インストーラー版は起動時に安定版を確認します。画面表示中は適用を延期。
+画面を閉じた後、設定・履歴を保存して安全に終了し、トレイで再起動します。
+ポータブル版は自己上書きしません。</value></data>
+  <data name="UpdateVersionNote" xml:space="preserve"><value>バージョン {0}
+確認先：{1}
+安定版未公開・アクセス不可・通信失敗を「最新版」と扱いません。
+Usage用のtokenは更新先へ送りません。</value></data>
+  <data name="SavedAccount" xml:space="preserve"><value>保存したアカウント：{0}</value></data>
+  <data name="CheckedAt" xml:space="preserve"><value>確認日時：{0} JST</value></data>
+  <data name="DetectedCandidate" xml:space="preserve"><value>検出した候補：{0}</value></data>
+  <data name="AutoGuidance" xml:space="preserve"><value>日・週の目安を自動設定（固定配分）
+1日の目安 {0:0.##} {1}
+1週間の目安 {2:0.##} {1}</value></data>
+  <data name="AutoGuidanceUnknown" xml:space="preserve"><value>日・週の目安を自動設定
+総枠・期間の取得後に表示します。</value></data>
+  <data name="NotificationNumberInvalid" xml:space="preserve"><value>通知の数値を確認してください。</value></data>
+  <data name="SettingsInvalid" xml:space="preserve"><value>接続設定のアカウント・パス・言語・schemaを確認してください。</value></data>
+  <data name="PinnedAccountInvalid" xml:space="preserve"><value>固定アカウント情報が不正です。</value></data>
+  <data name="AutoPinRequired" xml:space="preserve"><value>自動接続には確認済みの固定アカウントが必要です。</value></data>
+  <data name="CandidateMissing" xml:space="preserve"><value>確認済みの接続候補がありません。</value></data>
+  <data name="ClaudeNeedsConfirmation" xml:space="preserve"><value>Claude数値連携は本人の確認が必要です。</value></data>
+  <data name="StartupExecutableRequired" xml:space="preserve"><value>ログオン時起動はインストール済みEXEから設定してください。</value></data>
+  <data name="PendingSettingsRequired" xml:space="preserve"><value>接続設定がありません。</value></data>
+  <data name="NotificationSettingsRequired" xml:space="preserve"><value>通知設定がありません。</value></data>
+  <data name="QuotaSettingsRequired" xml:space="preserve"><value>枠設定がありません。</value></data>
+  <data name="VerificationStartupBlocked" xml:space="preserve"><value>検証プロファイルからログオン設定は変更しません。</value></data>
+  <data name="DemoReadOnly" xml:space="preserve"><value>デモは検出・接続・更新・保存しません。</value></data>
+  <data name="PanelRequired" xml:space="preserve"><value>画面はトレイから起動してください。</value></data>
+  <data name="ConsumptionViewMissing" xml:space="preserve"><value>表示用の観測差分がありません。</value></data>
+</root>

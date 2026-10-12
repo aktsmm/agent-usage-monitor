@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <StartupObject>AiUsageTray.Desktop.Program</StartupObject>
+    <Product>Agent Usage Monitor</Product>
+    <ApplicationIcon>assets\app.ico</ApplicationIcon>
+    <Description>Windows coding agent usage, quota guidance and notifications</Description>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="assets\app.ico" />
+    <Content Include="assets\app.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <RuntimeHostConfigurationOption Include="System.Globalization.UseNls" Value="true" />
+    <PackageReference Include="Velopack" Version="[1.2.161]" />
+    <ProjectReference Include="..\AiUsageTray.Core\AiUsageTray.Core.csproj" />
+    <ProjectReference Include="..\AiUsageTray.Diagnostics\AiUsageTray.Diagnostics.csproj" />
+  </ItemGroup>
+</Project>

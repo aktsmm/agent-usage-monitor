@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="AgentUsage" xml:space="preserve"><value>Agent usage</value></data>
+  <data name="Brand" xml:space="preserve"><value>Agent Usage Monitor</value></data>
+  <data name="HistoryTitle" xml:space="preserve"><value>Daily history · Agent Usage Monitor</value></data>
+  <data name="History" xml:space="preserve"><value>History</value></data>
+  <data name="HistoryStorage" xml:space="preserve"><value>History &amp; storage</value></data>
+  <data name="AppearanceLanguage" xml:space="preserve"><value>Appearance &amp; language</value></data>
+  <data name="DisplayLanguage" xml:space="preserve"><value>Display language</value></data>
+  <data name="FollowSystem" xml:space="preserve"><value>Follow system</value></data>
+  <data name="Japanese" xml:space="preserve"><value>日本語</value></data>
+  <data name="English" xml:space="preserve"><value>English</value></data>
+  <data name="LanguageExplanation" xml:space="preserve"><value>Initially follows the Windows display language. Your choice is saved and survives restart.</value></data>
+  <data name="LanguageInvariantNote" xml:space="preserve"><value>Display only: accounts, quotas, record IDs and notification deduplication remain unchanged.</value></data>
+  <data name="Refresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="Reload" xml:space="preserve"><value>Reload</value></data>
+  <data name="Settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Confirm" xml:space="preserve"><value>Confirm</value></data>
+  <data name="Close" xml:space="preserve"><value>Close</value></data>
+  <data name="Service" xml:space="preserve"><value>Service</value></data>
+  <data name="AccountHash" xml:space="preserve"><value>Account (identity hash)</value></data>
+  <data name="Quota" xml:space="preserve"><value>Quota</value></data>
+  <data name="Range" xml:space="preserve"><value>Range</value></data>
+  <data name="RangeDays" xml:space="preserve"><value>{0} days</value></data>
+  <data name="MonthInput" xml:space="preserve"><value>Month (yyyy-MM)</value></data>
+  <data name="ShowMonth" xml:space="preserve"><value>Show month</value></data>
+  <data name="PeriodDefinition" xml:space="preserve"><value>Quota period (reset, plan, denominator and unit changes remain separate)</value></data>
+  <data name="PlanUnknown" xml:space="preserve"><value>Plan unknown</value></data>
+  <data name="UnitUnknown" xml:space="preserve"><value>Unknown unit</value></data>
+  <data name="PercentagePoints" xml:space="preserve"><value>pt</value></data>
+  <data name="Credits" xml:space="preserve"><value>credits</value></data>
+  <data name="Requests" xml:space="preserve"><value>requests</value></data>
+  <data name="PercentagePointsExplanation" xml:space="preserve"><value>pt = percentage points within one quota; not cost or tokens.</value></data>
+  <data name="CalendarExplanation" xml:space="preserve"><value>Day boundary: JST (UTC+9) / Week starts Monday</value></data>
+  <data name="HistorySubtitle" xml:space="preserve"><value>Observed quota deltas · JST dates · Not cost or tokens</value></data>
+  <data name="HistoryLegend" xml:space="preserve"><value>Solid: observed consumption   Hatched: partial/unmeasured   Dashed: fixed daily guidance</value></data>
+  <data name="HistoryNotes" xml:space="preserve"><value>Deltas crossing day boundaries are not guessed or split. Partial values are observed lower bounds.
+A zero delta may reflect API rounding; it does not prove zero consumption.</value></data>
+  <data name="Unmeasured" xml:space="preserve"><value>Unmeasured</value></data>
+  <data name="Partial" xml:space="preserve"><value>Partial (lower bound)</value></data>
+  <data name="CompleteToObservation" xml:space="preserve"><value>Complete to observation</value></data>
+  <data name="ObservedConsumption" xml:space="preserve"><value>Observed consumption</value></data>
+  <data name="DailyGuidance" xml:space="preserve"><value>Daily guidance</value></data>
+  <data name="GuidanceUsed" xml:space="preserve"><value>Guidance used</value></data>
+  <data name="LastObservation" xml:space="preserve"><value>Last observation</value></data>
+  <data name="NoRecord" xml:space="preserve"><value>No record</value></data>
+  <data name="Changes" xml:space="preserve"><value>Changes</value></data>
+  <data name="DayBoundaryUnallocated" xml:space="preserve"><value>Day-boundary delta not allocated</value></data>
+  <data name="ObservationGap" xml:space="preserve"><value>Observation gap</value></data>
+  <data name="DayDetail" xml:space="preserve"><value>{0} · {1}
+Observed consumption: {2} {3}   Daily guidance: {4}   Guidance used: {5}%
+Last observation: {6} JST</value></data>
+  <data name="HistoryLoading" xml:space="preserve"><value>Loading history…</value></data>
+  <data name="NoRecordedQuota" xml:space="preserve"><value>No quota has been recorded yet.</value></data>
+  <data name="HistoryLocation" xml:space="preserve"><value>History location</value></data>
+  <data name="Saved" xml:space="preserve"><value>Saved</value></data>
+  <data name="PendingRecords" xml:space="preserve"><value>Pending · {0:N0} records
+{1}</value></data>
+  <data name="ChooseFolder" xml:space="preserve"><value>Choose folder…</value></data>
+  <data name="FolderPickerTitle" xml:space="preserve"><value>Select the history folder</value></data>
+  <data name="OpenHistoryFolder" xml:space="preserve"><value>Open history folder</value></data>
+  <data name="ShowHistoryFile" xml:space="preserve"><value>Show file in Explorer</value></data>
+  <data name="OpenArchiveFolder" xml:space="preserve"><value>Open archive folder</value></data>
+  <data name="ShowArchiveFile" xml:space="preserve"><value>Show ZIP in Explorer</value></data>
+  <data name="StorageNotes" xml:space="preserve"><value>Select a Windows or OneDrive folder. Settings, notification deduplication and pending records stay local.
+Concurrent writing and automatic aggregation across PCs are not supported.</value></data>
+  <data name="ArchiveHeading" xml:space="preserve"><value>Monthly rotation &amp; archives</value></data>
+  <data name="ArchiveNotes" xml:space="preserve"><value>Choose the target month in History. The current month cannot be archived.
+Original raw files and monthly summaries are retained. No automatic deletion.</value></data>
+  <data name="CreateVerifyArchive" xml:space="preserve"><value>Create &amp; verify month's ZIP</value></data>
+  <data name="VerifyArchive" xml:space="preserve"><value>Verify month's ZIP</value></data>
+  <data name="ArchiveConfirmationTitle" xml:space="preserve"><value>Confirm archive</value></data>
+  <data name="ArchiveConfirmation" xml:space="preserve"><value>Archive raw records for {0} and verify the ZIP.
+Original raw files and daily summaries will not be deleted.</value></data>
+  <data name="ArchiveCreatedVerified" xml:space="preserve"><value>Created and verified: {0}</value></data>
+  <data name="ArchiveVerified" xml:space="preserve"><value>Verified by this operation: {0}</value></data>
+  <data name="OpenDoesNotVerify" xml:space="preserve"><value>Opening a file does not verify its hash. Location changes require a preview and confirmation; the source is retained.</value></data>
+  <data name="MigrationTitle" xml:space="preserve"><value>Preview location change</value></data>
+  <data name="MigrationPreview" xml:space="preserve"><value>Source: {0}
+Destination: {1}
+Files: {2:N0} · {3:N0} bytes to copy
+Free space: {4}
+Copy → verify hashes and content → switch. Keep the source; never overwrite existing content.</value></data>
+  <data name="FreeSpaceUnknown" xml:space="preserve"><value>Could not verify</value></data>
+  <data name="MigrationCompleted" xml:space="preserve"><value>Copy and content verification completed. Location switched; the source was retained.</value></data>
+  <data name="OperationFailed" xml:space="preserve"><value>Operation could not complete ({0}).</value></data>
+  <data name="UnknownError" xml:space="preserve"><value>Operation failed ({0}).</value></data>
+  <data name="HistoryUnavailable" xml:space="preserve"><value>History storage is unavailable ({0}).</value></data>
+  <data name="MonthInvalid" xml:space="preserve"><value>Enter the target month as yyyy-MM.</value></data>
+  <data name="RangeMissing" xml:space="preserve"><value>The history range is missing.</value></data>
+  <data name="CatalogMissing" xml:space="preserve"><value>The history catalog is missing.</value></data>
+  <data name="HistoryResponseMissing" xml:space="preserve"><value>The history response is missing.</value></data>
+  <data name="FolderRequired" xml:space="preserve"><value>Select an absolute folder path.</value></data>
+  <data name="PreviewRequired" xml:space="preserve"><value>Review a fresh location preview first.</value></data>
+  <data name="PreviewMissing" xml:space="preserve"><value>The location preview is missing.</value></data>
+  <data name="FolderNotWritable" xml:space="preserve"><value>The selected folder is not writable.</value></data>
+  <data name="MonthRequired" xml:space="preserve"><value>Select the target month.</value></data>
+  <data name="OpenLocationRequired" xml:space="preserve"><value>Select the history location to open.</value></data>
+  <data name="OperationNotAllowed" xml:space="preserve"><value>This history operation is not allowed.</value></data>
+  <data name="FileMissing" xml:space="preserve"><value>The requested history file has not been created yet.</value></data>
+  <data name="FolderMissing" xml:space="preserve"><value>The requested history folder has not been created yet.</value></data>
+  <data name="ExplorerFailed" xml:space="preserve"><value>Could not launch Explorer. Check permissions and the location.</value></data>
+  <data name="InvalidHistoryData" xml:space="preserve"><value>History data is invalid or unsupported; it was not replaced with empty history.</value></data>
+  <data name="HistoryTooLarge" xml:space="preserve"><value>The history file exceeds the supported size. Pending records were retained.</value></data>
+  <data name="WriterMismatch" xml:space="preserve"><value>This history belongs to another writer or schema version.</value></data>
+  <data name="ExistingHistoryUnavailable" xml:space="preserve"><value>The existing history folder is unavailable. It was not initialized empty.</value></data>
+  <data name="MigrationOverlap" xml:space="preserve"><value>Source and destination history folders must not overlap.</value></data>
+  <data name="MigrationConflict" xml:space="preserve"><value>Destination content conflicts. Existing files were not overwritten.</value></data>
+  <data name="MigrationStale" xml:space="preserve"><value>History changed after preview. Review a fresh preview.</value></data>
+  <data name="MigrationExtraFiles" xml:space="preserve"><value>The folder contains unexpected files. Choose another empty folder.</value></data>
+  <data name="MigrationSpace" xml:space="preserve"><value>The destination has insufficient free space.</value></data>
+  <data name="MigrationNotReady" xml:space="preserve"><value>The location preview is not ready for copying.</value></data>
+  <data name="MigrationVerifyFailed" xml:space="preserve"><value>Copy verification failed. The active location was not switched.</value></data>
+  <data name="CurrentMonthArchive" xml:space="preserve"><value>The current month cannot be archived yet.</value></data>
+  <data name="PendingArchive" xml:space="preserve"><value>Resend pending records before archiving.</value></data>
+  <data name="ArchivedMonthSealed" xml:space="preserve"><value>The month is already archived. Its ZIP was not overwritten.</value></data>
+  <data name="NoMonthRecorded" xml:space="preserve"><value>No history was recorded for this month.</value></data>
+  <data name="NoRawRecorded" xml:space="preserve"><value>No raw records are available for this month.</value></data>
+  <data name="ArchiveInvalid" xml:space="preserve"><value>Archive verification failed. Original records were retained.</value></data>
+  <data name="StorageUnavailable" xml:space="preserve"><value>The history destination is unavailable. Pending records stay local.</value></data>
+  <data name="LocalJournalUnavailable" xml:space="preserve"><value>The local journal could not be saved. Active raw state was retained.</value></data>
+  <data name="UnsupportedLinkedFolder" xml:space="preserve"><value>Junction/symlink folders are not supported. Choose a regular folder.</value></data>
+  <data name="Notifications" xml:space="preserve"><value>Notifications</value></data>
+  <data name="Connections" xml:space="preserve"><value>Connections</value></data>
+  <data name="AppearanceStartup" xml:space="preserve"><value>Appearance &amp; startup</value></data>
+  <data name="UsedRemaining" xml:space="preserve"><value>Used {0:0.##}% · Remaining {1:0.##}%</value></data>
+  <data name="Stale" xml:space="preserve"><value>Stale</value></data>
+  <data name="Fetched" xml:space="preserve"><value>Fetched</value></data>
+  <data name="LastConfirmed" xml:space="preserve"><value>Last confirmed</value></data>
+  <data name="UnknownUsage" xml:space="preserve"><value>Usage unknown</value></data>
+  <data name="Unlimited" xml:space="preserve"><value>Unlimited (API reported)</value></data>
+  <data name="ResetAt" xml:space="preserve"><value>Reset: {0} JST</value></data>
+  <data name="ResetUnknown" xml:space="preserve"><value>Reset time unknown</value></data>
+  <data name="Daily" xml:space="preserve"><value>Today</value></data>
+  <data name="Weekly" xml:space="preserve"><value>This week</value></data>
+  <data name="GuidanceExceedance" xml:space="preserve"><value>{0} · Guidance exceeded</value></data>
+  <data name="GuidanceUsage" xml:space="preserve"><value>{0:0}% of guidance ({1})</value></data>
+  <data name="ConsumptionOfGuidance" xml:space="preserve"><value>{0} / {1} {2}</value></data>
+  <data name="FixedAllocation" xml:space="preserve"><value>Fixed allocation: daily {0:0.##} / weekly {1:0.##} {2}</value></data>
+  <data name="GuidanceUnknown" xml:space="preserve"><value>Guidance unavailable: quota total or period is unknown.</value></data>
+  <data name="ProviderMissing" xml:space="preserve"><value>Not fetched. Select the account in Connections.</value></data>
+  <data name="ClaudeMissing" xml:space="preserve"><value>Not fetched. Official login and scalar snapshot integration are required.</value></data>
+  <data name="RetrievalStatus" xml:space="preserve"><value>Retrieval: {0} · {1}</value></data>
+  <data name="PollingFooter" xml:space="preserve"><value>Every {0:0} minutes · JST days / Monday weeks</value></data>
+  <data name="DemoFooter" xml:space="preserve"><value>Synthetic demo · No authentication, connection or saving</value></data>
+  <data name="MainTitle" xml:space="preserve"><value>Agent usage</value></data>
+  <data name="Exit" xml:space="preserve"><value>Exit</value></data>
+  <data name="UpdateCheck" xml:space="preserve"><value>Check for app updates</value></data>
+  <data name="StartAtLogon" xml:space="preserve"><value>Start at logon</value></data>
+  <data name="StartupEnableConfirm" xml:space="preserve"><value>Start this app in the tray at logon?</value></data>
+  <data name="StartupDisableConfirm" xml:space="preserve"><value>Disable this app's logon startup?</value></data>
+  <data name="InitializationFailed" xml:space="preserve"><value>Could not start. If already running, check the tray.
+{0}</value></data>
+  <data name="PanelStartFailed" xml:space="preserve"><value>Could not open the window. Check the executable.</value></data>
+  <data name="CommunicationFailed" xml:space="preserve"><value>Communication with the tray failed. Reopen the window from the tray.</value></data>
+  <data name="CommunicationStopped" xml:space="preserve"><value>UI communication stopped. Restart the app.</value></data>
+  <data name="CommunicationTimeout" xml:space="preserve"><value>UI communication timed out.</value></data>
+  <data name="RefreshFailed" xml:space="preserve"><value>Could not request a refresh. Reopen from the tray.</value></data>
+  <data name="SaveFailed" xml:space="preserve"><value>Could not save settings ({0}).</value></data>
+  <data name="AuthenticationRequired" xml:space="preserve"><value>Sign in using the official CLI.</value></data>
+  <data name="AccountMismatch" xml:space="preserve"><value>The account no longer matches the selected identity.</value></data>
+  <data name="MissingCredential" xml:space="preserve"><value>The selected credential is unavailable.</value></data>
+  <data name="ProviderError" xml:space="preserve"><value>Could not fetch usage ({0}). The last confirmed values are retained.</value></data>
+  <data name="NotificationUsage" xml:space="preserve"><value>{0} · {1}: quota usage reached {2}.</value></data>
+  <data name="NotificationGuidance" xml:space="preserve"><value>{0} · {1}: {2} guidance exceeded ({3}).</value></data>
+  <data name="NotificationReset" xml:space="preserve"><value>{0} · {1}: quota reset confirmed.</value></data>
+  <data name="UpdateTitle" xml:space="preserve"><value>App update</value></data>
+  <data name="UpdateChecking" xml:space="preserve"><value>Checking the latest stable app release.</value></data>
+  <data name="UpdateAvailable" xml:space="preserve"><value>Version {0} is available.</value></data>
+  <data name="UpdateCurrent" xml:space="preserve"><value>Current version {0}. No newer stable release.</value></data>
+  <data name="UpdateUnavailable" xml:space="preserve"><value>No published stable release could be verified. It may be absent or inaccessible.</value></data>
+  <data name="UpdateDownloadConfirm" xml:space="preserve"><value>Download and update to {0}?
+Application is deferred while any window is open. After closing it, the app safely exits and restarts.</value></data>
+  <data name="UpdateDownloading" xml:space="preserve"><value>Downloading and verifying the new stable release.</value></data>
+  <data name="UpdateDeferred" xml:space="preserve"><value>Update deferred while a window or connection discovery is active.</value></data>
+  <data name="UpdateApplyConfirm" xml:space="preserve"><value>Apply the verified update?</value></data>
+  <data name="UpdateRestart" xml:space="preserve"><value>Applying the verified update and restarting.</value></data>
+  <data name="UpdateFailed" xml:space="preserve"><value>Update check/application failed ({0}). Usage and saved settings are unchanged.</value></data>
+  <data name="PortableUpdate" xml:space="preserve"><value>Portable copies are not automatically replaced. Get the installer or ZIP from the official Releases page.</value></data>
+  <data name="UpdateProfileBlocked" xml:space="preserve"><value>Verification profiles do not update the installed app.
+Check only: {0}</value></data>
+  <data name="ShowUsageStrip" xml:space="preserve"><value>Show usage strip</value></data>
+  <data name="UsageStripNotes" xml:space="preserve"><value>Small native strip above the taskbar. Drag to reposition; double-click to open usage. Copilot monthly / Codex and Claude weekly. Missing and stale values are never zero.</value></data>
+  <data name="UsageStripAmbiguous" xml:space="preserve"><value>Multiple quotas; select the account/quota in History.</value></data>
+  <data name="MonthlyQuota" xml:space="preserve"><value>Monthly quota</value></data>
+  <data name="WeeklyQuota" xml:space="preserve"><value>Weekly quota</value></data>
+  <data name="ShortQuota" xml:space="preserve"><value>Short-term quota</value></data>
+  <data name="UnknownQuotaWindow" xml:space="preserve"><value>Quota period unknown</value></data>
+  <data name="QuotaDetails" xml:space="preserve"><value>Source &amp; quota details</value></data>
+  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.##} {1} · Total unknown</value></data>
+  <data name="CreditsApiValue" xml:space="preserve"><value>credits_used (API): {0:0.##} · No conversion or quota aggregation</value></data>
+  <data name="MainSubtitle" xml:space="preserve"><value>Quota usage and daily/weekly guidance</value></data>
+  <data name="UpdateIdle" xml:space="preserve"><value>App updates have not been checked yet.</value></data>
+  <data name="UpdateDisabled" xml:space="preserve"><value>Automatic updates are disabled. Manual checking is available.</value></data>
+  <data name="FailureUnauthorized" xml:space="preserve"><value>Authentication expired or invalid. Check login with the official CLI.</value></data>
+  <data name="FailureForbidden" xml:space="preserve"><value>Access denied. Check subscription, organization policy and SSO approval.</value></data>
+  <data name="FailureNetwork" xml:space="preserve"><value>Network unavailable. Check again after reconnecting.</value></data>
+  <data name="FailureTimeout" xml:space="preserve"><value>Retrieval timed out. Check again later.</value></data>
+  <data name="FailureSchema" xml:space="preserve"><value>Response schema or available quotas could not be verified.</value></data>
+  <data name="FailureRateLimited" xml:space="preserve"><value>Retrieval is rate-limited. The provider's waiting period is respected.</value></data>
+  <data name="FailureServer" xml:space="preserve"><value>The service returned an error. Check again later.</value></data>
+  <data name="FailureSnapshot" xml:space="preserve"><value>No scalar snapshot. Check statusline integration.</value></data>
+  <data name="FailureCli" xml:space="preserve"><value>Could not launch the official CLI. Check installation and executable path.</value></data>
+  <data name="FailureStorage" xml:space="preserve"><value>Could not read local data. Check permissions and the location.</value></data>
+  <data name="ClaudeCliMissing" xml:space="preserve"><value>Claude CLI was not found. Install the official CLI.</value></data>
+  <data name="ClaudeLoginRequired" xml:space="preserve"><value>CLI detected; login required. Run claude auth login yourself.</value></data>
+  <data name="ClaudeScalarRequired" xml:space="preserve"><value>Login verified. User-confirmed statusline scalar integration is required.</value></data>
+  <data name="GithubCliMissing" xml:space="preserve"><value>gh not found. Copilot CLI-only credential selection cannot be verified automatically. Use gh auth login or advanced settings.</value></data>
+  <data name="CodexFileMissing" xml:space="preserve"><value>auth.json is unavailable. Login or keyring-based authentication may be in use; automatic selection is unsupported. Check codex login status. The app does not change the credential store.</value></data>
+  <data name="CodexLoginRequired" xml:space="preserve"><value>Codex CLI detected; login required. Run codex login yourself.</value></data>
+  <data name="CodexNotSubscription" xml:space="preserve"><value>Selected authentication is not a ChatGPT subscription. API-key costs are not part of this quota view.</value></data>
+  <data name="CodexStoreUnsupported" xml:space="preserve"><value>keyring/auto credential stores cannot be matched to the selected account_id. Check codex login status.</value></data>
+  <data name="DiscoveryTimeout" xml:space="preserve"><value>Discovery timed out. Retry using Detect again.</value></data>
+  <data name="DiscoveryCancelled" xml:space="preserve"><value>Discovery cancelled. Saved settings are retained.</value></data>
+  <data name="DiscoveryReady" xml:space="preserve"><value>Official login and available quotas verified.</value></data>
+  <data name="DiscoveryUnknown" xml:space="preserve"><value>Selected authentication could not be verified. Check the official CLI.</value></data>
+  <data name="ConnectionDisabled" xml:space="preserve"><value>Disabled by your preference. Restart will not re-enable it.</value></data>
+  <data name="ConnectionConfirm" xml:space="preserve"><value>Previously unconfigured. Choose automatic setup or keep disabled once.</value></data>
+  <data name="ConnectionDiscovering" xml:space="preserve"><value>Detecting the current official CLI login.</value></data>
+  <data name="ConnectionAutomatic" xml:space="preserve"><value>Automatically configured; the verified account is pinned.</value></data>
+  <data name="ConnectionManual" xml:space="preserve"><value>Manual settings retained.</value></data>
+  <data name="ConnectionPending" xml:space="preserve"><value>Not fetched. The current official CLI login will be checked.</value></data>
+  <data name="OpenReleasePageConfirm" xml:space="preserve"><value>Open the official Releases page?</value></data>
+  <data name="SettingsTitle" xml:space="preserve"><value>Settings · Agent Usage Monitor</value></data>
+  <data name="EnableQuotaNotifications" xml:space="preserve"><value>Enable notifications for this quota</value></data>
+  <data name="NotifyDaily" xml:space="preserve"><value>Notify when daily guidance is exceeded</value></data>
+  <data name="NotifyWeekly" xml:space="preserve"><value>Notify when weekly guidance is exceeded</value></data>
+  <data name="NotifyReset" xml:space="preserve"><value>Notify quota reset</value></data>
+  <data name="NotifySteps" xml:space="preserve"><value>Notify quota usage steps</value></data>
+  <data name="FetchCopilot" xml:space="preserve"><value>Fetch GitHub Copilot usage</value></data>
+  <data name="FetchCodex" xml:space="preserve"><value>Fetch Codex usage</value></data>
+  <data name="FetchClaude" xml:space="preserve"><value>Read Claude Code scalar snapshots</value></data>
+  <data name="CodexFallback" xml:space="preserve"><value>Limited official Codex CLI fallback</value></data>
+  <data name="AutoUpdateOption" xml:space="preserve"><value>Check stable releases and update automatically at startup (installed version)</value></data>
+  <data name="CancelDetection" xml:space="preserve"><value>Cancel detection</value></data>
+  <data name="UnsavedChanges" xml:space="preserve"><value>Unsaved changes</value></data>
+  <data name="UnsavedConfirm" xml:space="preserve"><value>There are unsaved changes. Save before closing?</value></data>
+  <data name="NotificationQuota" xml:space="preserve"><value>Service and quota to configure</value></data>
+  <data name="DefaultQuota" xml:space="preserve"><value>Default (all unconfigured quotas)</value></data>
+  <data name="StepInput" xml:space="preserve"><value>Step (quota usage percentage points, 1–100)</value></data>
+  <data name="ThresholdInput" xml:space="preserve"><value>Thresholds (%; comma-separated / empty disables)</value></data>
+  <data name="NotificationNotes" xml:space="preserve"><value>Fixed allocation: no rollover or redistribution of remaining quota.
+Day boundary: JST (UTC+9) / Week starts Monday. Missing records are unmeasured.
+Notifications are deduplicated by account, quota, period and rule.</value></data>
+  <data name="ConnectionIntro" xml:space="preserve"><value>Use the current official CLI login.
+Services verified at first launch are configured automatically.
+The saved account will not be changed silently.</value></data>
+  <data name="CandidateNote" xml:space="preserve"><value>Using a detected candidate does not change saved connections until you save.</value></data>
+  <data name="LegacyConnectionNote" xml:space="preserve"><value>Previously unconfigured services
+The old version cannot distinguish its defaults from your disabled preference. Saved connections, notifications and history are retained.</value></data>
+  <data name="LegacyEnable" xml:space="preserve"><value>Set up unconfigured services automatically (after saving)</value></data>
+  <data name="LegacyKeep" xml:space="preserve"><value>Keep services unconfigured (after saving)</value></data>
+  <data name="DetectAgain" xml:space="preserve"><value>Detect again</value></data>
+  <data name="CheckState" xml:space="preserve"><value>Check status again</value></data>
+  <data name="UseCandidate" xml:space="preserve"><value>Use verified candidate (after saving)</value></data>
+  <data name="CandidateConfirm" xml:space="preserve"><value>Replace the saved connection with this verified candidate?
+Saved: {0}
+Candidate: {1}
+Changes apply only after saving.</value></data>
+  <data name="GithubLoginInput" xml:space="preserve"><value>GitHub login to match</value></data>
+  <data name="GithubTargetInput" xml:space="preserve"><value>Exact Windows Credential target (empty uses selected gh authentication)</value></data>
+  <data name="CodexEmailInput" xml:space="preserve"><value>Codex account email to match</value></data>
+  <data name="CodexHomeInput" xml:space="preserve"><value>Official CLI CODEX_HOME</value></data>
+  <data name="CodexExecutableInput" xml:space="preserve"><value>codex.exe (absolute path for limited fallback)</value></data>
+  <data name="CodexFallbackNote" xml:space="preserve"><value>Use time-bounded official app-server only after direct authentication/schema failure. No inference is invoked.</value></data>
+  <data name="ClaudeFileInput" xml:space="preserve"><value>Scalar-only snapshot path</value></data>
+  <data name="ClaudeLabelInput" xml:space="preserve"><value>User-confirmed account label</value></data>
+  <data name="ClaudeNote" xml:space="preserve"><value>Verify authentication and account in the official CLI yourself.
+Existing statusline configuration is not changed. No custom OAuth or dummy inference.</value></data>
+  <data name="ConnectionAdvanced" xml:space="preserve"><value>Advanced · Manual fields &amp; credential source</value></data>
+  <data name="CredentialNotes" xml:space="preserve"><value>Only account/path references are saved. No token input or custom login.
+Restore authentication with the official CLI. Existing Claude settings are not changed automatically.</value></data>
+  <data name="Appearance" xml:space="preserve"><value>Appearance</value></data>
+  <data name="Dark" xml:space="preserve"><value>Dark</value></data>
+  <data name="Light" xml:space="preserve"><value>Light</value></data>
+  <data name="StartupNote" xml:space="preserve"><value>Logon startup is your choice. It is not enabled by default.</value></data>
+  <data name="UpdateBehavior" xml:space="preserve"><value>Installed copies check stable releases at startup. Apply is deferred while any window is open.
+After closing windows, settings/history are saved before safe shutdown and background restart.
+Portable copies are not overwritten.</value></data>
+  <data name="UpdateVersionNote" xml:space="preserve"><value>Version {0}
+Source: {1}
+Absent releases, inaccessible repositories and network failures are not reported as up to date.
+Usage tokens are not sent to the update source.</value></data>
+  <data name="SavedAccount" xml:space="preserve"><value>Saved account: {0}</value></data>
+  <data name="CheckedAt" xml:space="preserve"><value>Checked: {0} JST</value></data>
+  <data name="DetectedCandidate" xml:space="preserve"><value>Detected candidate: {0}</value></data>
+  <data name="AutoGuidance" xml:space="preserve"><value>Automatic daily/weekly guidance (fixed allocation)
+Daily: {0:0.##} {1}
+Weekly: {2:0.##} {1}</value></data>
+  <data name="AutoGuidanceUnknown" xml:space="preserve"><value>Automatic daily/weekly guidance
+Shown after quota total and period are available.</value></data>
+  <data name="NotificationNumberInvalid" xml:space="preserve"><value>Check the notification numbers.</value></data>
+  <data name="SettingsInvalid" xml:space="preserve"><value>Check connection accounts, paths, language and settings schema.</value></data>
+  <data name="PinnedAccountInvalid" xml:space="preserve"><value>The pinned account identity is invalid.</value></data>
+  <data name="AutoPinRequired" xml:space="preserve"><value>Automatic connections require a verified pinned account.</value></data>
+  <data name="CandidateMissing" xml:space="preserve"><value>No verified connection candidate is available.</value></data>
+  <data name="ClaudeNeedsConfirmation" xml:space="preserve"><value>Claude scalar integration requires your confirmation.</value></data>
+  <data name="StartupExecutableRequired" xml:space="preserve"><value>Configure logon startup from the installed executable.</value></data>
+  <data name="PendingSettingsRequired" xml:space="preserve"><value>Connection settings are missing.</value></data>
+  <data name="NotificationSettingsRequired" xml:space="preserve"><value>Notification settings are missing.</value></data>
+  <data name="QuotaSettingsRequired" xml:space="preserve"><value>Quota settings are missing.</value></data>
+  <data name="VerificationStartupBlocked" xml:space="preserve"><value>Verification profiles do not change logon startup.</value></data>
+  <data name="DemoReadOnly" xml:space="preserve"><value>Demo mode does not detect, connect, update or save data.</value></data>
+  <data name="PanelRequired" xml:space="preserve"><value>Open the window from the tray.</value></data>
+  <data name="ConsumptionViewMissing" xml:space="preserve"><value>The observed consumption view is missing.</value></data>
+</root>
