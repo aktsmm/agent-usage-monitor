@@ -32,8 +32,8 @@ release/tagが存在したら上書きせず停止し、作る場合もdraftだ�
 
 - LICENSEはCC BY-NC-SA4.0とMicrosoft Corporation/affiliatesへのNC免除だけの追加許諾。
   依存のMIT/.NET noticesは変更しない。
-- 公開先は `aktsmm/agent-usage-monitor`（旧ai-usage-monitor、現在もPrivate）。元のPrivate履歴は移さず、
-  一般向けソースsnapshotだけを移す。元履歴を勝手に書き換えない。
+- 公開先は `aktsmm/agent-usage-monitor`（旧ai-usage-monitor）。初回の履歴なしsnapshot公開後は、
+  通常のPR・patch commitでmainを更新します。元のPrivate履歴や公開mainを初期化し直しません。
 - README/公開画像は架空の数値・アカウントだけにする。内部検証証跡は配布物に含めない。
 - clean outputでinstaller/portable、Start Menu、更新確認、アンインストール、データ保持を確認する。
 - 署名証明書/SmartScreen、Private vulnerability reporting、immutable releases、draftのreviewを判断する。
@@ -139,3 +139,16 @@ GDI資源数が増加しないことを確認しています。画面構成の�
 
 配布物は未署名です。真正な公開更新のauto-apply E2Eは後続の安定versionがある場合の
 確認事項であり、この初回Releaseの作成だけで成功とは記載しません。
+
+## 0.2.1 常駐修正・診断
+
+[0.2.1の変更内容と検証の限界](release-notes-0.2.1.md)。
+Console runnerは122テストです。小型表示のcloseで本体まで落ちる再現経路を修正し、
+bounded・redactedなローカル終了診断を追加しました。
+過去の実停止の根因確定や永久再発解消とは扱いません。
+
+公開手順はPRのWindows CI成功、expected head確認、通常merge、mainからの
+`draft_release=true`、既存の `release-approval` reviewer承認、draft全資産の
+hash/version/runtime NOTICE確認、stable公開、匿名downloadのSHA256/readbackです。
+既存のversion/tag/assetsは上書きしません。自動更新のdownload/apply/restartは、
+実際に観測できた範囲だけを別途報告します。

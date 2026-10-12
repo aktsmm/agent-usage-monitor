@@ -33,6 +33,10 @@ static class NativeStripSmoke
             strip.Update(new DesktopSettings { UsageStripEnabled = true, Language = DisplayLanguage.English },
                 [snapshot], TimeSpan.FromMinutes(10));
             Pump();
+            SendMessage(strip.Handle, 0x0010, IntPtr.Zero, IntPtr.Zero);
+            strip.Update(new DesktopSettings { UsageStripEnabled = true, Language = DisplayLanguage.English },
+                [snapshot], TimeSpan.FromMinutes(10));
+            Pump();
             if (!IsWindowVisible(strip.Handle))
                 throw new InvalidOperationException("Native strip did not show");
             if (errors.Count > 0)
@@ -69,6 +73,7 @@ static class NativeStripSmoke
     [DllImport("user32.dll")] private static extern uint GetGuiResources(IntPtr process, uint flags);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll", EntryPoint = "PeekMessageW")] private static extern bool PeekMessage(out Message message, IntPtr window, uint first, uint last, uint remove);
     [DllImport("user32.dll")] private static extern bool TranslateMessage(ref Message message);
     [DllImport("user32.dll", EntryPoint = "DispatchMessageW")] private static extern IntPtr DispatchMessage(ref Message message);

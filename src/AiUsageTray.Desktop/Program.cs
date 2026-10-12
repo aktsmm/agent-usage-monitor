@@ -35,7 +35,33 @@ public static class Program
             RunPanel();
             return;
         }
-        new TrayHost(args).Run();
+        TrayHost? host = null;
+        void Unhandled(object sender, UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception exception)
+            {
+                host?.RecordFatal(exception);
+                host?.ShowFatal(exception);
+            }
+        }
+        AppDomain.CurrentDomain.UnhandledException += Unhandled;
+        try
+        {
+            host = new TrayHost(args);
+            host.Run();
+        }
+        catch (Exception ex)
+        {
+            Environment.ExitCode = 1;
+            host?.RecordFatal(ex);
+            if (host is not null) host.ShowFatal(ex);
+            else NativeTray.ShowError(new UiLocalizer().Format(UiText.HostStopped, ex.GetType().Name));
+        }
+        finally
+        {
+            host?.ReleaseLease();
+            AppDomain.CurrentDomain.UnhandledException -= Unhandled;
+        }
     }
 
     private static void RunPanel()

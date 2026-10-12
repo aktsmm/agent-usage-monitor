@@ -307,4 +307,5 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="DemoReadOnly" xml:space="preserve"><value>デモは検出・接続・更新・保存しません。</value></data>
   <data name="PanelRequired" xml:space="preserve"><value>画面はトレイから起動してください。</value></data>
   <data name="ConsumptionViewMissing" xml:space="preserve"><value>表示用の観測差分がありません。</value></data>
+  <data name="HostStopped" xml:space="preserve"><value>常駐モニターが予期せず停止しました（{0}）。プロファイル内の diagnostics フォルダーに記録できた終了証跡を確認してください。障害を確認してから再起動してください。更新の適用は行っていません。</value></data>
 </root>
