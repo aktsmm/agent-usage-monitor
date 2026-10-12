@@ -52,13 +52,16 @@ public sealed class TrayHost
     private bool updateReserved;
     private bool resumeDeferred;
     private bool initialized;
+    private bool shutdownComplete;
+    private HostShutdownReason shutdownReason;
+    private HostDiagnostics? diagnostics;
     private UiLocalizer Locale => new(settings.Language);
 
     public TrayHost(string[] args)
     {
         this.args = args;
         tray = new NativeTray(() => ShowPanel(false), RequestRefresh, () => ShowPanel(true),
-            async () => await ExitAsync(), error => lastError = error,
+            async () => await ExitFromTrayAsync(), error => lastError = error,
             CheckUpdates, async () => await ToggleStartupAsync(), () => settings.StartAtLogon,
             async () => await ToggleUsageStripAsync(), () => settings.UsageStripEnabled,
             () => { openHistory = true; ShowPanel(false); }, () => new(settings.Language));
@@ -67,7 +70,43 @@ public sealed class TrayHost
         context.Post(async _ => await InitializeAsync(), null);
     }
 
-    public void Run() => tray.Run();
+    public void Run()
+    {
+        int code = tray.Run();
+        diagnostics?.Write(HostEvent.LoopReturned, shutdownReason, exitCode: code);
+        if (!shutdownComplete)
+            throw new InvalidOperationException("host_message_loop_ended_without_shutdown");
+        Environment.ExitCode = code;
+        if (code == 0) diagnostics?.Write(HostEvent.CleanExit, shutdownReason, exitCode: code);
+        GC.KeepAlive(this);
+    }
+
+    public void RecordFatal(Exception exception)
+    {
+        Environment.ExitCode = 1;
+        try { diagnostics?.Write(HostEvent.Fatal, shutdownReason, exception, 1); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        { Console.Error.WriteLine("host_diagnostics_write_failed:" + ex.GetType().Name); }
+    }
+
+    public void ReleaseLease() => store?.Dispose();
+    public void ShowFatal(Exception exception) =>
+        NativeTray.ShowError(Locale.Format(UiText.HostStopped, exception.GetType().Name), Locale);
+    private Task ExitFromTrayAsync() => ExitAsync(reason: tray.CloseReason);
+
+    private Task Observe(Task task, HostEvent stage)
+    {
+        _ = task.ContinueWith(faulted =>
+        {
+            var exception = faulted.Exception!.GetBaseException();
+            context.Post(_ =>
+            {
+                diagnostics?.Write(stage, shutdownReason, exception, 1);
+                tray.Fail(exception);
+            }, null);
+        }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+        return task;
+    }
 
     private async Task InitializeAsync()
     {
@@ -77,6 +116,9 @@ public sealed class TrayHost
             int index = Array.IndexOf(args, "--profile");
             if (index >= 0 && index + 1 < args.Length) profile = Path.GetFullPath(args[index + 1]);
             store = new StateStore(Path.Combine(profile, "state.json"));
+            diagnostics = new(profile, UpdateFlow.Version);
+            tray.Lifecycle = kind => diagnostics.Write(kind, shutdownReason);
+            tray.StartHeartbeat();
             settingsPath = Path.Combine(profile, "settings.json");
             state = await store.LoadAsync(stopping.Token);
             history = await HistoryService.LoadAsync(profile, stopping.Token);
@@ -91,13 +133,19 @@ public sealed class TrayHost
             await settings.SaveAsync(settingsPath, stopping.Token);
             usageStrip = new NativeUsageStrip(tray.Handle, () => ShowPanel(false),
                 (x, y) => tray.ShowMenu(x, y), async position => await SaveStripPositionAsync(position),
-                error => lastError = error);
+                error =>
+                {
+                    lastError = error;
+                    diagnostics.Write(HostEvent.StripFailed);
+                    tray.Notify(Locale.Text(UiText.AgentUsage), Locale.Error(error), error: true);
+                }, tray.Fail);
             RefreshUsageStrip();
             tray.Show();
             Microsoft.Win32.SystemEvents.PowerModeChanged += PowerChanged;
-            server = ServeAsync();
-            polling = PollAsync();
+            server = Observe(ServeAsync(), HostEvent.IpcFault);
+            polling = Observe(PollAsync(), HostEvent.PollingFault);
             initialized = true;
+            diagnostics.Write(HostEvent.Ready);
             if (!args.Contains("--background")) ShowPanel(false);
             StartDiscovery(null, initial: true);
             if (!args.Contains("--profile") && settings.AutoUpdateEnabled)
@@ -105,8 +153,9 @@ public sealed class TrayHost
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or UsageException or Win32Exception)
         {
+            RecordFatal(ex);
             NativeTray.ShowError(Locale.Format(UiText.InitializationFailed, ex.GetType().Name), Locale);
-            await ExitAsync();
+            await ExitAsync(reason: HostShutdownReason.InitializationFailed);
         }
     }
 
@@ -134,7 +183,15 @@ public sealed class TrayHost
             panel = Process.Start(info) ?? throw new UsageException(FailureKind.Cli, "panel_start_failed");
             panelPid = panel.Id;
             panel.EnableRaisingEvents = true;
-            panel.Exited += (_, _) => context.Post(_ => ResumeDeferredUpdate(), null);
+            panel.Exited += (_, _) =>
+            {
+                if (stopping.IsCancellationRequested) return;
+                context.Post(_ =>
+                {
+                    diagnostics?.Write(HostEvent.PanelExited);
+                    ResumeDeferredUpdate();
+                }, null);
+            };
         }
         catch (Win32Exception)
         {
@@ -196,12 +253,17 @@ public sealed class TrayHost
             if (updateProcess is not null)
             {
                 updateProcess.EnableRaisingEvents = true;
-                updateProcess.Exited += (_, _) => context.Post(_ =>
+                updateProcess.Exited += (_, _) =>
                 {
-                    if (!exiting && update.Stage is UpdateStage.Checking or UpdateStage.Downloading or UpdateStage.Ready)
-                        update = new(UpdateStage.Failed, "update_helper_ended", ErrorCode: "update_helper_ended");
-                    ResumeDeferredUpdate();
-                }, null);
+                    if (stopping.IsCancellationRequested) return;
+                    context.Post(_ =>
+                    {
+                        diagnostics?.Write(HostEvent.UpdateHelperExited);
+                        if (!exiting && update.Stage is UpdateStage.Checking or UpdateStage.Downloading or UpdateStage.Ready)
+                            update = new(UpdateStage.Failed, "update_helper_ended", ErrorCode: "update_helper_ended");
+                        ResumeDeferredUpdate();
+                    }, null);
+                };
             }
         }
         catch (Win32Exception)
@@ -226,7 +288,7 @@ public sealed class TrayHost
         if (discoveryRun is { IsCompleted: false } || exiting) return;
         discoveryCancellation?.Dispose();
         discoveryCancellation = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token);
-        discoveryRun = DiscoverAsync(provider, initial, discoveryCancellation.Token);
+        discoveryRun = Observe(DiscoverAsync(provider, initial, discoveryCancellation.Token), HostEvent.DiscoveryFault);
     }
 
     private async Task DiscoverAsync(Provider? requested, bool initial, CancellationToken cancellationToken)
@@ -277,7 +339,10 @@ public sealed class TrayHost
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         { lastError = "discovery_cancelled"; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or UsageException)
-        { lastError = "discovery_save_failed:" + ex.GetType().Name; }
+        {
+            lastError = "discovery_save_failed:" + ex.GetType().Name;
+            diagnostics?.Write(HostEvent.DiscoveryFailed, exception: ex);
+        }
         finally { context.Post(_ => ResumeDeferredUpdate(), null); }
     }
 
@@ -341,6 +406,12 @@ public sealed class TrayHost
 
     private void PowerChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
     {
+        if (stopping.IsCancellationRequested) return;
+        context.Post(_ =>
+        {
+            if (e.Mode == Microsoft.Win32.PowerModes.Suspend) diagnostics?.Write(HostEvent.PowerSuspend);
+            if (e.Mode == Microsoft.Win32.PowerModes.Resume) diagnostics?.Write(HostEvent.PowerResume);
+        }, null);
         if (e.Mode == Microsoft.Win32.PowerModes.Resume)
             context.Post(_ => RequestRefresh(), null);
     }
@@ -445,6 +516,7 @@ public sealed class TrayHost
         catch (IOException)
         {
             lastError = "ipc_stopped";
+            diagnostics?.Write(HostEvent.IpcStopped);
             context.Post(_ => tray.Notify(Locale.Text(UiText.AgentUsage), Locale.Error(lastError), error: true), null);
         }
     }
@@ -580,6 +652,7 @@ public sealed class TrayHost
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or UsageException)
         {
             lastError = "usage_polling_stopped:" + ex.GetType().Name;
+            diagnostics?.Write(HostEvent.PollingStopped, exception: ex);
             tray.Notify(Locale.Text(UiText.AgentUsage), Locale.Error(lastError), error: true);
         }
     }
@@ -610,10 +683,12 @@ public sealed class TrayHost
             string.Join(" / ", n.CrossedLevels.Select(level => level.ToString("0.##", Locale.Culture) + "%")))
     };
 
-    private async Task ExitAsync(bool forUpdate = false)
+    private async Task ExitAsync(bool forUpdate = false, HostShutdownReason reason = HostShutdownReason.None)
     {
         if (exiting) return;
         exiting = true;
+        shutdownReason = forUpdate ? HostShutdownReason.Update : reason;
+        diagnostics?.Write(HostEvent.ShutdownRequested, shutdownReason);
         if (panel is { HasExited: false })
         {
             EnumWindows((handle, _) =>
@@ -627,21 +702,28 @@ public sealed class TrayHost
             catch (OperationCanceledException) when (timeout.IsCancellationRequested)
             {
                 exiting = false; updateReserved = false;
+                diagnostics?.Write(HostEvent.ShutdownCancelled, shutdownReason);
+                shutdownReason = HostShutdownReason.None;
                 tray.Notify(Locale.Text(UiText.AgentUsage), Locale.Text(UiText.UnsavedConfirm), error: true);
                 return;
             }
         }
+        diagnostics?.Write(HostEvent.Cancelling, shutdownReason);
         stopping.Cancel();
         if (!forUpdate && updateProcess is { HasExited: false })
             await ReadOnlyProcess.CloseAsync(updateProcess);
+        diagnostics?.Write(HostEvent.Draining, shutdownReason);
         if (polling is not null) await polling;
         if (server is not null) await server;
         if (discoveryRun is not null) await discoveryRun;
+        diagnostics?.Write(HostEvent.Saving, shutdownReason);
         if (store is not null && initialized) await store.SaveAsync(state, CancellationToken.None);
         discoveryCancellation?.Dispose();
         Microsoft.Win32.SystemEvents.PowerModeChanged -= PowerChanged;
-        panel?.Dispose(); updateProcess?.Dispose(); usageStrip?.Dispose(); tray.Dispose(); store?.Dispose(); http.Dispose();
-        tray.Stop();
+        diagnostics?.Write(HostEvent.Disposing, shutdownReason);
+        panel?.Dispose(); updateProcess?.Dispose(); usageStrip?.Dispose(); tray.Dispose(); http.Dispose();
+        shutdownComplete = true;
+        tray.Stop(shutdownReason == HostShutdownReason.InitializationFailed ? 1 : 0);
     }
 
     [DllImport("kernel32.dll", SetLastError = true)]

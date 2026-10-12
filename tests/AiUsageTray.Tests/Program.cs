@@ -923,6 +923,7 @@ AsyncTest("legacy JSON migration runs once and retains manual fields", async () 
     }
     finally { Directory.Delete(home, true); }
 });
+HostLifetimeTests.Register(Test);
 int failures = 0;
 foreach (var test in tests)
 {

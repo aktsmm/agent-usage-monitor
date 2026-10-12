@@ -15,6 +15,7 @@ public sealed class NativeUsageStrip : IDisposable
     private readonly Action<int, int> menu;
     private readonly Action<UsageStripPosition> moved;
     private readonly Action<string> report;
+    private readonly Action<Exception>? fatal;
     private readonly IntPtr handle;
     private IntPtr font;
     private uint fontDpi;
@@ -31,9 +32,10 @@ public sealed class NativeUsageStrip : IDisposable
     public IntPtr Handle => handle;
 
     public NativeUsageStrip(IntPtr owner, Action open, Action<int, int> menu,
-        Action<UsageStripPosition> moved, Action<string> report)
+        Action<UsageStripPosition> moved, Action<string> report, Action<Exception>? fatal = null)
     {
         this.open = open; this.menu = menu; this.moved = moved; this.report = report;
+        this.fatal = fatal;
         procedure = WndProc;
         var windowClass = new WindowClass
         {
@@ -66,7 +68,9 @@ public sealed class NativeUsageStrip : IDisposable
         snapshots = verified.ToArray();
         failed = failedProviders?.ToHashSet() ?? [];
         maximumAge = age;
-        Refresh();
+        try { Refresh(); }
+        catch (Win32Exception ex) { report("usage_strip_failed:" + ex.NativeErrorCode); }
+        catch (UsageException ex) { report(ex.SafeCode); }
     }
 
     private void Refresh()
@@ -141,10 +145,22 @@ public sealed class NativeUsageStrip : IDisposable
 
     private IntPtr WndProc(IntPtr window, uint message, IntPtr wParam, IntPtr lParam)
     {
+        try { return HandleMessage(window, message, wParam, lParam); }
+        catch (Exception ex) when (fatal is not null)
+        {
+            fatal(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    private IntPtr HandleMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam)
+    {
         try
         {
             switch (message)
             {
+                // This owned, nonactivating status window is not an application exit surface.
+                case 0x0010: return IntPtr.Zero;
                 case 0x000F:
                     Paint(window);
                     return IntPtr.Zero;

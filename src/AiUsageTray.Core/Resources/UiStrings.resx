@@ -307,4 +307,5 @@ Shown after quota total and period are available.</value></data>
   <data name="DemoReadOnly" xml:space="preserve"><value>Demo mode does not detect, connect, update or save data.</value></data>
   <data name="PanelRequired" xml:space="preserve"><value>Open the window from the tray.</value></data>
   <data name="ConsumptionViewMissing" xml:space="preserve"><value>The observed consumption view is missing.</value></data>
+  <data name="HostStopped" xml:space="preserve"><value>The background monitor stopped unexpectedly ({0}). Check the profile's diagnostics folder for available lifecycle evidence. Restart the app after checking the failure; no update was applied.</value></data>
 </root>

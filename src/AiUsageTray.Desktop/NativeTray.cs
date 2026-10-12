@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using AiUsageTray.Core;
 
 namespace AiUsageTray.Desktop;
@@ -33,6 +34,9 @@ public sealed class NativeTray : IDisposable
     private readonly IntPtr icon;
     private readonly bool ownsIcon;
     private bool disposed;
+    private ExceptionDispatchInfo? callbackFailure;
+    public Action<HostEvent>? Lifecycle { get; set; }
+    public HostShutdownReason CloseReason { get; private set; } = HostShutdownReason.TrayMenu;
 
     public NativeTray(Action show, Action refresh, Action settings, Action exit, Action<string> report,
         Action updates, Action startup, Func<bool> startupEnabled, Action? stripToggle = null,
@@ -71,18 +75,33 @@ public sealed class NativeTray : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), "tray_dispatch_failed");
     }
 
-    public void Run()
+    public int Run()
     {
         int result;
-        while ((result = GetMessage(out var message, IntPtr.Zero, 0, 0)) > 0)
+        Message message;
+        while ((result = GetMessage(out message, IntPtr.Zero, 0, 0)) > 0)
         {
             TranslateMessage(ref message);
             DispatchMessage(ref message);
         }
+        GC.KeepAlive(procedure);
+        callbackFailure?.Throw();
         if (result < 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+        return unchecked((int)message.WParam.ToUInt64());
     }
 
-    public void Stop() => PostQuitMessage(0);
+    public void Stop(int exitCode = 0) => PostQuitMessage(exitCode);
+    public void Fail(Exception exception)
+    {
+        callbackFailure ??= ExceptionDispatchInfo.Capture(exception);
+        PostQuitMessage(1);
+    }
+
+    public void StartHeartbeat()
+    {
+        if (SetTimer(Handle, new UIntPtr(1), 60_000, IntPtr.Zero) == UIntPtr.Zero)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "host_timer_failed");
+    }
     public static void ShowError(string text, UiLocalizer? locale = null) =>
         MessageBox(IntPtr.Zero, text, (locale ?? new()).Text(UiText.AgentUsage), 16);
     public static void ShowInformation(string text, UiLocalizer? locale = null) =>
@@ -117,9 +136,37 @@ public sealed class NativeTray : IDisposable
 
     private IntPtr WndProc(IntPtr window, uint message, IntPtr wParam, IntPtr lParam)
     {
+        try { return HandleMessage(window, message, wParam, lParam); }
+        catch (Exception ex)
+        {
+            // Do not let managed exceptions escape a reverse P/Invoke boundary.
+            // Stop the loop and rethrow on its managed caller, never resume a faulty host.
+            Fail(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    private IntPtr HandleMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam)
+    {
+        if (callbackFailure is not null) return IntPtr.Zero;
+        if (message == 0x0113 && wParam == new IntPtr(1))
+        {
+            Lifecycle?.Invoke(HostEvent.Heartbeat);
+            return IntPtr.Zero;
+        }
+        if (message == 0x0011)
+        {
+            Lifecycle?.Invoke(HostEvent.SessionEnding);
+            return new IntPtr(1);
+        }
+        if (message == 0x0016 && wParam != IntPtr.Zero)
+        {
+            Lifecycle?.Invoke(HostEvent.SessionEnded);
+            return IntPtr.Zero;
+        }
         if (message == Dispatch)
         {
-            while (work.TryDequeue(out var item)) item.Callback(item.State);
+            while (callbackFailure is null && work.TryDequeue(out var item)) item.Callback(item.State);
             return IntPtr.Zero;
         }
         if (message == Callback)
@@ -131,6 +178,8 @@ public sealed class NativeTray : IDisposable
         }
         if (message == 0x0010)
         {
+            CloseReason = HostShutdownReason.WindowClose;
+            Lifecycle?.Invoke(HostEvent.WindowClose);
             exit();
             return IntPtr.Zero;
         }
@@ -165,7 +214,7 @@ public sealed class NativeTray : IDisposable
                 case 1: show(); break;
                 case 2: refresh(); break;
                 case 3: settings(); break;
-                case 4: exit(); break;
+                case 4: CloseReason = HostShutdownReason.TrayMenu; exit(); break;
                 case 5: updates(); break;
                 case 6: startup(); break;
                 case 7: stripToggle(); break;
@@ -182,7 +231,7 @@ public sealed class NativeTray : IDisposable
         if (disposed) return;
         disposed = true;
         if (added) { var data = Data(0); ShellNotifyIcon(2, ref data); added = false; }
-        if (Handle != IntPtr.Zero) { DestroyWindow(Handle); Handle = IntPtr.Zero; }
+        if (Handle != IntPtr.Zero) { KillTimer(Handle, new UIntPtr(1)); DestroyWindow(Handle); Handle = IntPtr.Zero; }
         UnregisterClass(className, GetModuleHandle(null));
         if (ownsIcon) DestroyIcon(icon);
     }
@@ -242,6 +291,8 @@ public sealed class NativeTray : IDisposable
     [DllImport("user32.dll")] private static extern bool TranslateMessage(ref Message message);
     [DllImport("user32.dll", EntryPoint = "DispatchMessageW")] private static extern IntPtr DispatchMessage(ref Message message);
     [DllImport("user32.dll")] private static extern void PostQuitMessage(int exitCode);
+    [DllImport("user32.dll", SetLastError = true)] private static extern UIntPtr SetTimer(IntPtr window, UIntPtr id, uint interval, IntPtr callback);
+    [DllImport("user32.dll")] private static extern bool KillTimer(IntPtr window, UIntPtr id);
     [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)] private static extern int MessageBox(IntPtr window, string text, string caption, uint type);
 }
 
