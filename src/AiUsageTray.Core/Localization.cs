@@ -58,7 +58,8 @@ public enum UiText
     AutoGuidance, AutoGuidanceUnknown, NotificationNumberInvalid, SettingsInvalid, PinnedAccountInvalid,
     AutoPinRequired, CandidateMissing, ClaudeNeedsConfirmation, StartupExecutableRequired,
     PendingSettingsRequired, NotificationSettingsRequired, QuotaSettingsRequired, VerificationStartupBlocked,
-    DemoReadOnly, PanelRequired, ConsumptionViewMissing, HostStopped
+    DemoReadOnly, PanelRequired, ConsumptionViewMissing, HostStopped,
+    UsageStripWaiting, UsageStripFresh, UsageStripFetchFailed, UsageStripLastFetch
 }
 
 public sealed class UiLocalizer

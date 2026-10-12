@@ -44,6 +44,13 @@ if (args.Contains("app-server"))
 }
 
 int fixtureIndex = Array.IndexOf(args, "--create-synthetic-profile");
+int captureIndex = Array.IndexOf(args, "--capture-strip-fixtures");
+if (captureIndex >= 0 && captureIndex + 1 < args.Length)
+{
+    NativeStripRenderSmoke.Run(Path.GetFullPath(args[captureIndex + 1]));
+    Console.WriteLine("synthetic_strip_render_ready");
+    return 0;
+}
 if (fixtureIndex >= 0 && fixtureIndex + 1 < args.Length)
 {
     var profile = Path.GetFullPath(args[fixtureIndex + 1]);
@@ -924,6 +931,8 @@ AsyncTest("legacy JSON migration runs once and retains manual fields", async () 
     finally { Directory.Delete(home, true); }
 });
 HostLifetimeTests.Register(Test);
+UsageStripPresentationTests.Register(Test);
+Test("native strip renders hatch contrast localized tooltip hit-test and neutral app access", () => NativeStripRenderSmoke.Run());
 int failures = 0;
 foreach (var test in tests)
 {
