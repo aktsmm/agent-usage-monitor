@@ -3,6 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace AiUsageTray.Core;
 
+public sealed class StateStoreInUseException(IOException innerException)
+    : IOException("state_store_in_use", innerException);
+
 public sealed class StateStore : IDisposable
 {
     public static readonly JsonSerializerOptions JsonOptions = new()
@@ -18,8 +21,15 @@ public sealed class StateStore : IDisposable
     {
         this.path = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(this.path)!);
-        lease = new FileStream(this.path + ".lock", FileMode.OpenOrCreate,
-            FileAccess.ReadWrite, FileShare.None);
+        try
+        {
+            lease = new FileStream(this.path + ".lock", FileMode.OpenOrCreate,
+                FileAccess.ReadWrite, FileShare.None);
+        }
+        catch (IOException ex) when ((ex.HResult & 0xFFFF) == 32)
+        {
+            throw new StateStoreInUseException(ex);
+        }
     }
 
     public async Task<UsageState> LoadAsync(CancellationToken cancellationToken)

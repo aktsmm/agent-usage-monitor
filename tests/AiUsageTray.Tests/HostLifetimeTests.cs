@@ -1,10 +1,100 @@
 using System.Text.Json;
+using AiUsageTray.Core;
 using AiUsageTray.Desktop;
 
 static class HostLifetimeTests
 {
     public static void Register(Action<string, Action> test)
     {
+        test("state lease contention is distinct from other storage failures and stale lock files", () =>
+        {
+            WithProfile(profile =>
+            {
+                var path = Path.Combine(profile, "state.json");
+                using (var owner = new StateStore(path))
+                {
+                    try
+                    {
+                        using var duplicate = new StateStore(path);
+                        throw new InvalidOperationException("Duplicate lease acquired");
+                    }
+                    catch (StateStoreInUseException ex) when (ex.InnerException is IOException inner &&
+                        (inner.HResult & 0xFFFF) == 32) { }
+                }
+                using (var reopened = new StateStore(path)) { }
+                File.Delete(path + ".lock");
+                Directory.CreateDirectory(path + ".lock");
+                try
+                {
+                    using var invalid = new StateStore(path);
+                    throw new InvalidOperationException("Invalid lease path accepted");
+                }
+                catch (UnauthorizedAccessException) { }
+            });
+        });
+        test("sharing violations while reading state are not mistaken for a duplicate lease", () =>
+        {
+            WithProfile(profile =>
+            {
+                var path = Path.Combine(profile, "state.json");
+                using var owner = new StateStore(path);
+                using var blockedState = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                try
+                {
+                    _ = owner.LoadAsync(default).GetAwaiter().GetResult();
+                    throw new InvalidOperationException("Locked state was read");
+                }
+                catch (StateStoreInUseException)
+                { throw new InvalidOperationException("State read failure misclassified as duplicate"); }
+                catch (IOException ex) when ((ex.HResult & 0xFFFF) == 32) { }
+            });
+        });
+        test("delayed background duplicate exits zero without changing the owner's profile or diagnostics", () =>
+        {
+            WithProfile(profile =>
+            {
+                var path = Path.Combine(profile, "state.json");
+                using var owner = new StateStore(path);
+                File.WriteAllText(path, "synthetic-state-do-not-load");
+                File.WriteAllText(Path.Combine(profile, "settings.json"), "synthetic-settings-do-not-load");
+                var log = new HostDiagnostics(profile, "synthetic");
+                log.Write(HostEvent.Ready);
+                var before = Directory.GetFiles(profile, "*", SearchOption.AllDirectories)
+                    .Where(file => file != path + ".lock")
+                    .ToDictionary(file => file, File.ReadAllBytes);
+                var previousContext = SynchronizationContext.Current;
+                int previousExitCode = Environment.ExitCode;
+                var previousError = Console.Error;
+                using var error = new StringWriter();
+                TrayHost? host = null;
+                try
+                {
+                    Console.SetError(error);
+                    Environment.ExitCode = 42;
+                    host = new TrayHost(["--background", "--profile", profile]);
+                    host.Run();
+                    if (Environment.ExitCode != 0 || error.ToString().Trim() != "host_profile_in_use")
+                        throw new InvalidOperationException("Duplicate did not exit explicitly and successfully");
+                    if (Directory.GetFiles(profile, "*", SearchOption.AllDirectories).Length != before.Count + 1 ||
+                        before.Any(file => !file.Value.SequenceEqual(File.ReadAllBytes(file.Key))))
+                        throw new InvalidOperationException("Duplicate changed the owner's files");
+                    try
+                    {
+                        using var duplicate = new StateStore(path);
+                        throw new InvalidOperationException("Owner's lease was released");
+                    }
+                    catch (StateStoreInUseException) { }
+                    log.Write(HostEvent.Heartbeat);
+                }
+                finally
+                {
+                    host?.ReleaseLease();
+                    Console.SetError(previousError);
+                    Environment.ExitCode = previousExitCode;
+                    SynchronizationContext.SetSynchronizationContext(previousContext);
+                }
+            });
+        });
         test("native dispatch faults return to managed caller instead of escaping WndProc", () =>
             DispatchFault(asynchronous: false));
         test("async void native context faults stop the loop explicitly", () =>
