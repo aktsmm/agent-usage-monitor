@@ -9,8 +9,8 @@ WSL、独自クラウドバックエンドを必要としません。
 画像は架空データです。実アカウントのUsage・認証・ローカルパスは含みません。
 [ライト表示](docs/images/usage-demo-light.png)。
 
-**0.2.2は小型表示の未取得・古い値表示を改善した版です。** 配布物は未署名です。
-[変更内容と検証の限界](docs/release-notes-0.2.2.md)を確認してください。
+**0.2.3はClaude Codeの数値連携を自動検出する版です。** 配布物は未署名です。
+[変更内容と検証の限界](docs/release-notes-0.2.3.md)を確認してください。
 
 ## できること
 
@@ -169,6 +169,9 @@ timeout・cancel・ネットワーク・認証・スキーマ・曖昧な選択�
 ### Claude statusline
 
 CLIの公式loginは利用者が行います。既存statuslineをアプリが自動で上書きすることはありません。
+`claude auth status`のemailと既定のsnapshot
+(`%USERPROFILE%\.claude\aiusage-exporter\claude-snapshot.json`)のaccount_idが一致した場合だけ、
+再検出時に自動で有効化します。一致しない・存在しない場合は有効化しません。
 `AiUsageTray.Diagnostics.exe claude-export <ラベル> <JSONパス>` は公式statusline JSONのstdinから
 `five_hour`/`seven_day`の`used_percentage`・`resets_at`だけを保存します。
 会話、transcriptパス、session/tokenは保存しません。

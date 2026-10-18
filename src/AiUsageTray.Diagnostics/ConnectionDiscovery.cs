@@ -18,7 +18,8 @@ public sealed record ConnectionProbe(Provider Provider, DiscoveryStatus Status, 
 }
 
 public sealed class ConnectionDiscovery(UsageHttp http, Func<string, string?>? cliResolver = null,
-    Func<string, string[], CancellationToken, Task<(int ExitCode, string Output)>>? commands = null)
+    Func<string, string[], CancellationToken, Task<(int ExitCode, string Output)>>? commands = null,
+    string? claudeSnapshotPath = null)
 {
     private readonly Func<string, string?> resolve = cliResolver ?? (name => OfficialCli.Resolve(name));
     private readonly Func<string, string[], CancellationToken, Task<(int ExitCode, string Output)>> capture =
@@ -137,10 +138,30 @@ public sealed class ConnectionDiscovery(UsageHttp http, Func<string, string?>? c
             throw new UsageException(FailureKind.Schema, "claude_auth_status_schema");
         if ((exitCode == 0) != loggedIn.GetBoolean())
             throw new UsageException(FailureKind.Schema, "claude_auth_status_exit_mismatch");
-        return new(Provider.Claude, loggedIn.GetBoolean() ? DiscoveryStatus.Unsupported : DiscoveryStatus.LoginRequired,
-            loggedIn.GetBoolean() ? "claude_scalar_link_required" : "claude_login_required",
-            Executable: executable, Version: version);
+        if (!loggedIn.GetBoolean())
+            return new(Provider.Claude, DiscoveryStatus.LoginRequired, "claude_login_required",
+                Executable: executable, Version: version);
+        var email = status.RootElement.TryGetProperty("email", out var mail) && mail.ValueKind == JsonValueKind.String
+            ? mail.GetString()?.Trim() ?? "" : "";
+        var snapshot = claudeSnapshotPath ?? DefaultClaudeSnapshotPath;
+        if (email.Length == 0 || email.Length > 320 || !File.Exists(snapshot))
+            return new(Provider.Claude, DiscoveryStatus.Unsupported, "claude_scalar_link_required",
+                Executable: executable, Version: version);
+        var key = Core.AccountKey.FromIdentity(Provider.Claude, email);
+        FetchResult result = await new ClaudeProvider(snapshot, key).FetchAsync(cancellationToken);
+        if (!result.Succeeded && result.Failures.Last().Kind is FailureKind.MissingSnapshot or FailureKind.AccountMismatch)
+            return new(Provider.Claude, DiscoveryStatus.Unsupported, "claude_scalar_link_required",
+                Executable: executable, Version: version);
+        if (!result.Succeeded)
+            return Failed(Provider.Claude, result.Failures.Last()) with { Executable = executable, Version = version };
+        RequireQuota(result);
+        return new(Provider.Claude, DiscoveryStatus.Ready, "claude_verified", email, key.Id,
+            snapshot, executable, version) { Usage = result };
     }
+
+    public static string DefaultClaudeSnapshotPath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "aiusage-exporter",
+        "claude-snapshot.json");
 
     private static void RequireQuota(FetchResult result)
     {

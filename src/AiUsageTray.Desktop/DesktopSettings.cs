@@ -131,7 +131,8 @@ public sealed record DesktopSettings
             Provider.Codex => this with { CodexEnabled = true, CodexMode = ConnectionMode.Automatic,
                 CodexEmail = probe.Identity, CodexPinnedAccount = probe.AccountKey, CodexHome = probe.Home,
                 CodexExecutable = probe.Executable, CodexCliFallback = probe.Executable.Length > 0 },
-            _ => throw new UsageException(FailureKind.Forbidden, "settings_claude_confirmation_required")
+            _ => this with { ClaudeEnabled = true, ClaudeMode = ConnectionMode.Automatic,
+                ClaudeAccountLabel = probe.Identity, ClaudeSnapshot = probe.Home }
         };
     }
     public DesktopSettings PinAccount(Provider provider, string key) => provider switch
@@ -162,6 +163,10 @@ public sealed record DesktopSettings
     public DesktopSettings CompleteDiscovery(DesktopSettings selection, ConnectionProbe probe, bool initial)
     {
         var updated = this with { ConnectionResults = new(ConnectionResults) { [probe.Provider] = probe } };
+        if (probe.Provider == Provider.Claude && probe.Status == DiscoveryStatus.Ready &&
+            Mode(Provider.Claude) is not (ConnectionMode.Manual or ConnectionMode.Disabled) &&
+            selection.SelectionId(Provider.Claude) == SelectionId(Provider.Claude))
+            return updated.ApplyProbe(probe);
         return initial && selection.Mode(probe.Provider) == ConnectionMode.Attempted &&
             Mode(probe.Provider) == ConnectionMode.Attempted &&
             selection.SelectionId(probe.Provider) == SelectionId(probe.Provider) &&

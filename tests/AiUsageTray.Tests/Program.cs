@@ -911,6 +911,34 @@ AsyncTest("GitHub account change during discovery never returns old Usage", asyn
     Equal(FailureKind.AccountMismatch, result.Failure!.Kind);
     True(result.Usage is null && result.Status != DiscoveryStatus.Ready);
 });
+AsyncTest("Claude discovery binds auth email to the default snapshot and auto-applies", async () =>
+{
+    var dir = Path.Combine(Path.GetTempPath(), $"ai-usage-claude-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(dir);
+    try
+    {
+        var file = Path.Combine(dir, "claude-snapshot.json");
+        var key = AccountKey.FromIdentity(Provider.Claude, "sample@example.com");
+        await File.WriteAllTextAsync(file, """{"account_id":"KEY","observed_at":"2026-10-19T00:00:00Z","rate_limits":{"five_hour":{"used_percentage":1,"resets_at":1792377000},"seven_day":{"used_percentage":0,"resets_at":1792821600}}}""".Replace("KEY", key.Id));
+        using var http = new UsageHttp(new FakeHandler(_ => new(HttpStatusCode.OK)));
+        var discovery = new ConnectionDiscovery(http, _ => Environment.ProcessPath!, (_, arguments, _) =>
+            Task.FromResult(arguments[0] == "--version" ? (0, "2.1.0 (Claude Code)") :
+                (0, """{"loggedIn":true,"email":"sample@example.com"}""")), file);
+        var probe = await discovery.ProbeAsync(Provider.Claude, @"C:\Example\.codex", default);
+        Equal(DiscoveryStatus.Ready, probe.Status);
+        var applied = new DesktopSettings { ClaudeMode = ConnectionMode.NeedsConfirmation }
+            .CompleteDiscovery(new DesktopSettings { ClaudeMode = ConnectionMode.NeedsConfirmation }, probe, false);
+        True(applied.ClaudeEnabled);
+        Equal("sample@example.com", applied.ClaudeAccountLabel);
+        Equal(file, applied.ClaudeSnapshot);
+        applied.Validate();
+        var other = new ConnectionDiscovery(http, _ => Environment.ProcessPath!, (_, arguments, _) =>
+            Task.FromResult(arguments[0] == "--version" ? (0, "2.1.0") :
+                (0, """{"loggedIn":true,"email":"other@example.com"}""")), file);
+        Equal(DiscoveryStatus.Unsupported, (await other.ProbeAsync(Provider.Claude, @"C:\Example\.codex", default)).Status);
+    }
+    finally { Directory.Delete(dir, true); }
+});
 AsyncTest("legacy JSON migration runs once and retains manual fields", async () =>
 {
     var home = Path.Combine(Path.GetTempPath(), $"ai-usage-legacy-{Guid.NewGuid():N}");
