@@ -83,6 +83,15 @@ static class AccountTests
             var values = UsageStrip.ValuesByAccount(s.Accounts(), [Snap(Provider.Copilot, "carol", 70)], now, TimeSpan.FromMinutes(10));
             Check(values[0].Percentage is null && values[1].Percentage == 70, "isolated");
         });
+        test("account strip text names accounts only when a service has several and single-account text is unchanged", () =>
+        {
+            var one = UsageStripPresentation.Create(baseSettings, [Snap(Provider.Copilot, "alice-work", 40)], now, TimeSpan.FromMinutes(10));
+            Check(one.Text == "Copilot 40%", one.Text);
+            var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { Alias = "Home", ShowInStrip = true });
+            var two = UsageStripPresentation.Create(s, [Snap(Provider.Copilot, "alice-work", 40), Snap(Provider.Copilot, "carol", 70)],
+                now, TimeSpan.FromMinutes(10));
+            Check(two.Text == "Copilot·alice-work 40%  |  Copilot·Home 70%", two.Text);
+        });
         test("account slot binding change drops only that account's cached values", () =>
         {
             var state = new UsageState { Latest = [Snap(Provider.Copilot, "alice-work", 40), Snap(Provider.Copilot, "carol", 70)] };
