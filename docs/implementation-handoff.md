@@ -53,7 +53,8 @@ ConnectionResultsの再検出は保存済みaccount/pathを変更しません。
 ## 更新・アンインストール
 
 Velopack startupを最初に実行し、auto-applyを無効にします。
-更新helperは固定の公式GitHub Releaseのみ読み、明示同意でdownload/applyします。
+更新helperは固定repoの公開Release静的feed（`releases.win.json` / `RELEASES`）のみ読み、
+GitHub REST APIを呼ばずに安定版を確認します。明示同意でdownload/applyします。
 適用前に常駐本体とUIを終了し、状態leaseを解放してから再起動します。
 portableは自己上書きしません。
 アプリinstallディレクトリーとUsageデータディレクトリーを分離し、
@@ -65,7 +66,8 @@ update-status / update-permission / update-exitは起動した更新helperのPID
 UI表示中は延期しhelperを終了、閉じた後にfeedと検証済みpending packageを再確認します。
 自動更新を無効にすれば適用しません。404はNoStableRelease、失敗はFailed、延期はDeferred。
 metadata/feedは1MiB、packageは300MiBまで。HTTPS固定repoとGitHubの配信redirect先だけ、
-SHA256とpackage/version/size binding、期限、429待機を適用します。
+SHA256とpackage/version/size binding、期限を適用します。HTTP 429とGitHubの残数0を示す403は
+レート制限として扱い、Retry-Afterまたはreset時刻を尊重します。
 hostの正常終了を確認できなければ更新適用しません。
 
 オリジナルのゲージSVGと16/20/24/32/48/64/128/256px ICOを同梱。

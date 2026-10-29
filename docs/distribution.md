@@ -90,6 +90,16 @@ installerの標準install先は `%LOCALAPPDATA%\AiUsageTrayDesktop`、データ�
 向く正確なRun値だけを除去し、データ・CLI認証は削除しません。
 検証プロファイルからログオン時起動を設定しない保護があります。
 
+## 0.2.5 更新確認のレート制限対策
+
+最新安定版の確認とVelopack feed取得は、GitHub Releaseの
+`/releases/latest/download/releases.win.json` と `/releases/latest/download/RELEASES` を使います。
+GitHub REST APIを呼ばないため、未認証APIの共有レート制限には依存しません。
+manifestはpackage ID・安定version・full package名・サイズ・SHA256を検証し、
+GitHub Release / 配信CDN以外へのredirectを拒否します。
+通常のネットワーク拒否は更新失敗として区別し、429または残数0を示す403は
+Retry-After / rate-limit resetに基づく待機情報を保持します。
+
 参照（2026-10-12確認）:
 
 - https://docs.velopack.io/integrating/overview
