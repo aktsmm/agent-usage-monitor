@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -21,51 +22,105 @@ public static class UpdateFlow
 {
     public const string Repository = "https://github.com/aktsmm/agent-usage-monitor";
     public const string ReleasePage = Repository + "/releases";
+    public const string ReleaseDownloadBase = Repository + "/releases/latest/download";
+    private const string LatestManifestUrl = ReleaseDownloadBase + "/releases.win.json";
+    private const string PackageId = "AiUsageTrayDesktop";
     public static string Version => typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
         .InformationalVersion.Split('+')[0];
 
     public static bool TrustedDownload(Uri uri) =>
         uri.Scheme == "https" && uri.Host == "github.com" && uri.IsDefaultPort && uri.UserInfo.Length == 0 &&
-        uri.AbsolutePath.StartsWith("/aktsmm/agent-usage-monitor/releases/download/", StringComparison.Ordinal) &&
-        uri.Query.Length == 0 && uri.Fragment.Length == 0 && !uri.AbsolutePath.Contains("%", StringComparison.Ordinal);
+        (uri.AbsolutePath.StartsWith("/aktsmm/agent-usage-monitor/releases/download/", StringComparison.Ordinal) ||
+         uri.AbsolutePath.StartsWith("/aktsmm/agent-usage-monitor/releases/latest/download/", StringComparison.Ordinal)) &&
+        TrustedReleaseQuery(uri) && uri.Fragment.Length == 0 && !uri.AbsolutePath.Contains("%", StringComparison.Ordinal);
 
-    public static async Task<SemanticVersion?> LatestVersionAsync(HttpClient client, CancellationToken cancellationToken)
+    public static bool TrustedReleaseRedirect(Uri uri) =>
+        uri.Scheme == "https" && uri.Host == "github.com" && uri.IsDefaultPort && uri.UserInfo.Length == 0 &&
+        uri.AbsolutePath.StartsWith("/aktsmm/agent-usage-monitor/releases/download/", StringComparison.Ordinal) &&
+        TrustedReleaseQuery(uri) && uri.Fragment.Length == 0 && !uri.AbsolutePath.Contains("%", StringComparison.Ordinal);
+
+    private static bool TrustedReleaseQuery(Uri uri) => uri.Query.Length == 0 ||
+        uri.AbsolutePath.EndsWith("/RELEASES", StringComparison.Ordinal) &&
+        uri.Query == "?packageId=AiUsageTrayDesktop";
+
+    public static bool IsRateLimited(HttpResponseMessage response) =>
+        response.StatusCode == HttpStatusCode.TooManyRequests ||
+        response.StatusCode == HttpStatusCode.Forbidden &&
+        response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) &&
+        remaining.Contains("0", StringComparer.Ordinal);
+
+    public static TimeSpan? RateLimitRetryAfter(HttpResponseMessage response)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get,
-            "https://api.github.com/repos/aktsmm/agent-usage-monitor/releases/latest");
-        request.Headers.UserAgent.ParseAdd("AiUsageTray/" + Version);
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return null;
-        if (response.StatusCode == HttpStatusCode.TooManyRequests)
-            throw new UsageException(FailureKind.RateLimited, "update_rate_limited",
-                response.Headers.RetryAfter?.Delta ?? response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var memory = new MemoryStream();
-        var buffer = new byte[8192];
-        int count;
-        while ((count = await stream.ReadAsync(buffer, cancellationToken)) > 0)
+        var retry = response.Headers.RetryAfter?.Delta;
+        if (retry is null && response.Headers.RetryAfter?.Date is { } retryDate)
+            retry = retryDate - DateTimeOffset.UtcNow;
+        if (retry is null && response.Headers.TryGetValues("X-RateLimit-Reset", out var resetValues) &&
+            long.TryParse(resetValues.FirstOrDefault(), NumberStyles.None, CultureInfo.InvariantCulture, out var resetSeconds) &&
+            resetSeconds >= 0 && resetSeconds <= 253_402_300_799)
         {
-            if (memory.Length + count > 1_048_576)
-                throw new UsageException(FailureKind.Schema, "update_metadata_too_large");
-            memory.Write(buffer, 0, count);
+            retry = DateTimeOffset.FromUnixTimeSeconds(resetSeconds) - DateTimeOffset.UtcNow;
         }
-        using var document = JsonDocument.Parse(memory.ToArray());
+        return retry is { } delay && delay > TimeSpan.Zero ? delay : null;
+    }
+
+    public static async Task<SemanticVersion?> LatestVersionAsync(HttpClient client, CancellationToken cancellationToken) =>
+        (await LatestAssetAsync(client, cancellationToken))?.Version;
+
+    private static async Task<VelopackAsset?> LatestAssetAsync(HttpClient client, CancellationToken cancellationToken)
+    {
+        byte[] content;
+        try
+        {
+            content = await UpdateDownloader.DownloadBytesAsync(client, LatestManifestUrl, cancellationToken);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(content);
         var root = document.RootElement;
-        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("tag_name", out var tag) ||
-            tag.ValueKind != JsonValueKind.String)
-            throw new UsageException(FailureKind.Schema, "update_response_schema_invalid");
-        if (!root.TryGetProperty("draft", out var draft) || draft.ValueKind != JsonValueKind.False ||
-            !root.TryGetProperty("prerelease", out var prerelease) || prerelease.ValueKind != JsonValueKind.False)
-            throw new UsageException(FailureKind.Schema, "update_unstable_release_rejected");
-        var candidate = tag.GetString() ?? "";
-        if (!Regex.IsMatch(candidate, @"^v?\d+\.\d+\.\d+$", RegexOptions.CultureInvariant))
-            throw new UsageException(FailureKind.Schema, "update_stable_version_invalid");
-        candidate = candidate.TrimStart('v');
-        if (!SemanticVersion.TryParse(candidate, out var newer) || newer is null)
-            throw new UsageException(FailureKind.Schema, "update_version_invalid");
-        return newer;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("Assets", out var assets) ||
+            assets.ValueKind != JsonValueKind.Array)
+            throw new UsageException(FailureKind.Schema, "update_release_manifest_invalid");
+
+        VelopackAsset? fullPackage = null;
+        foreach (var item in assets.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                !item.TryGetProperty("PackageId", out var packageId) || packageId.ValueKind != JsonValueKind.String ||
+                packageId.GetString() != PackageId ||
+                !item.TryGetProperty("Type", out var type) || type.ValueKind != JsonValueKind.String ||
+                type.GetString() != "Full")
+                continue;
+            if (fullPackage is not null)
+                throw new UsageException(FailureKind.Schema, "update_release_manifest_ambiguous");
+
+            if (!item.TryGetProperty("Version", out var versionElement) || versionElement.ValueKind != JsonValueKind.String ||
+                !item.TryGetProperty("FileName", out var fileName) || fileName.ValueKind != JsonValueKind.String ||
+                !item.TryGetProperty("SHA1", out var sha1) || sha1.ValueKind != JsonValueKind.String ||
+                !item.TryGetProperty("SHA256", out var sha256) || sha256.ValueKind != JsonValueKind.String ||
+                !item.TryGetProperty("Size", out var size) || !size.TryGetInt64(out var sizeBytes))
+                throw new UsageException(FailureKind.Schema, "update_release_manifest_invalid");
+
+            var versionText = versionElement.GetString() ?? "";
+            if (!Regex.IsMatch(versionText, @"^\d+\.\d+\.\d+$", RegexOptions.CultureInvariant) ||
+                !SemanticVersion.TryParse(versionText, out var version) || version is null)
+                throw new UsageException(FailureKind.Schema, "update_stable_version_invalid");
+
+            fullPackage = new VelopackAsset
+            {
+                PackageId = PackageId,
+                Version = version,
+                Type = VelopackAssetType.Full,
+                FileName = fileName.GetString() ?? "",
+                SHA1 = sha1.GetString(),
+                SHA256 = sha256.GetString(),
+                Size = sizeBytes
+            };
+            ValidateManifestAssetMetadata(fullPackage, version);
+        }
+        return fullPackage ?? throw new UsageException(FailureKind.Schema, "update_release_feed_missing");
     }
 
     public static async Task<string> PortableCheckAsync(HttpClient client, CancellationToken cancellationToken,
@@ -108,7 +163,7 @@ public static class UpdateFlow
         try
         {
             await ReportAsync(UpdateStage.Checking, "update_checking");
-            var manager = new UpdateManager(new TrustedGithubSource());
+            var manager = new UpdateManager(new SimpleWebSource(ReleaseDownloadBase, new UpdateDownloader()));
             using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
             { Timeout = TimeSpan.FromSeconds(20) };
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
@@ -123,7 +178,8 @@ public static class UpdateFlow
                     Process.Start(new ProcessStartInfo(ReleasePage) { UseShellExecute = true })?.Dispose();
                 return;
             }
-            var latest = await LatestVersionAsync(client, timeout.Token);
+            var latestAsset = await LatestAssetAsync(client, timeout.Token);
+            var latest = latestAsset?.Version;
             if (latest is null)
             {
                 string message = Version + "\n" + locale.Text(UiText.UpdateUnavailable) + "\n" + ReleasePage;
@@ -143,7 +199,7 @@ public static class UpdateFlow
             }
             var update = await manager.CheckForUpdatesAsync().WaitAsync(TimeSpan.FromSeconds(25));
             var target = update?.TargetFullRelease ?? manager.UpdatePendingRestart;
-            if (target is not null) ValidateAsset(target, latest, current);
+            if (target is not null) ValidateAsset(target, latestAsset!, current);
             if (target is null)
                 throw new UsageException(FailureKind.Schema, "update_release_feed_missing");
             if (checkOnly)
@@ -157,7 +213,7 @@ public static class UpdateFlow
             await ReportAsync(UpdateStage.Downloading, "update_downloading", target.Version.ToString());
             if (update is not null)
                 await manager.DownloadUpdatesAsync(update, cancelToken: downloadTimeout.Token);
-            await VerifyPackageAsync(target, downloadTimeout.Token);
+            await VerifyPackageAsync(latestAsset!, downloadTimeout.Token);
             if (pipe is null || hostIndex < 0 || hostIndex + 1 >= args.Length ||
                 !int.TryParse(args[hostIndex + 1], out var pid))
                 throw new UsageException(FailureKind.Forbidden, "update_tray_owner_required");
@@ -194,10 +250,35 @@ public static class UpdateFlow
 
     public static void ValidateAsset(VelopackAsset asset, SemanticVersion latest, SemanticVersion current)
     {
-        if (asset.Version != latest || asset.Version <= current ||
-            asset.PackageId != "AiUsageTrayDesktop" ||
-            asset.FileName != $"AiUsageTrayDesktop-{latest}-full.nupkg" ||
-            asset.Size is <= 0 or > 314_572_800 || asset.SHA256 is null ||
+        ValidateAssetMetadata(asset, latest);
+        if (asset.Version <= current)
+            throw new UsageException(FailureKind.Forbidden, "update_asset_manifest_mismatch");
+    }
+
+    public static void ValidateAsset(VelopackAsset asset, VelopackAsset manifestAsset, SemanticVersion current)
+    {
+        ValidateAsset(asset, manifestAsset.Version, current);
+        ValidateManifestAssetMetadata(manifestAsset, manifestAsset.Version);
+        if (asset.Size != manifestAsset.Size ||
+            !string.Equals(asset.SHA1, manifestAsset.SHA1, StringComparison.OrdinalIgnoreCase))
+            throw new UsageException(FailureKind.Forbidden, "update_asset_manifest_mismatch");
+    }
+
+    private static void ValidateAssetMetadata(VelopackAsset asset, SemanticVersion version)
+    {
+        if (asset.Version != version ||
+            asset.PackageId != PackageId ||
+            asset.Type != VelopackAssetType.Full ||
+            asset.FileName != $"AiUsageTrayDesktop-{version}-full.nupkg" ||
+            asset.Size is <= 0 or > 314_572_800 || asset.SHA1 is null ||
+            !Regex.IsMatch(asset.SHA1, "^[a-fA-F0-9]{40}$", RegexOptions.CultureInvariant))
+            throw new UsageException(FailureKind.Forbidden, "update_asset_manifest_mismatch");
+    }
+
+    private static void ValidateManifestAssetMetadata(VelopackAsset asset, SemanticVersion version)
+    {
+        ValidateAssetMetadata(asset, version);
+        if (asset.SHA256 is null ||
             !Regex.IsMatch(asset.SHA256, "^[a-fA-F0-9]{64}$", RegexOptions.CultureInvariant))
             throw new UsageException(FailureKind.Forbidden, "update_asset_manifest_mismatch");
     }
@@ -213,15 +294,4 @@ public static class UpdateFlow
             throw new UsageException(FailureKind.Forbidden, "update_sha256_mismatch");
     }
 
-    private sealed class TrustedGithubSource() : GithubSource(Repository, accessToken: null, prerelease: false,
-        downloader: new UpdateDownloader())
-    {
-        protected override string GetAssetUrlFromName(GithubRelease release, string assetName)
-        {
-            string url = base.GetAssetUrlFromName(release, assetName);
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !TrustedDownload(uri))
-                throw new UsageException(FailureKind.Forbidden, "update_asset_source_rejected");
-            return url;
-        }
-    }
 }
