@@ -41,8 +41,76 @@ public sealed record DesktopSettings
     public bool UsageStripEnabled { get; init; } = true;
     public UsageStripPosition? UsageStripPosition { get; init; }
     public bool StartAtLogon { get; init; }
+    public List<AccountProfile> ExtraAccounts { get; init; } = [];
+    public Dictionary<string, AccountPreference> AccountPrefs { get; init; } = [];
+
+    /// <summary>Primary connection of each service (the legacy single-account fields) followed by the extra accounts.</summary>
+    public IReadOnlyList<AccountProfile> Profiles()
+    {
+        var list = new List<AccountProfile>();
+        if (CopilotEnabled || GithubLogin.Length > 0)
+            list.Add(new() { Id = AccountNames.PrimaryId(Provider.Copilot), Provider = Provider.Copilot, Enabled = CopilotEnabled,
+                PinnedAccount = GithubPinnedAccount, Login = GithubLogin, CredentialTarget = GithubCredentialTarget, Executable = GithubExecutable });
+        if (CodexEnabled || CodexEmail.Length > 0)
+            list.Add(new() { Id = AccountNames.PrimaryId(Provider.Codex), Provider = Provider.Codex, Enabled = CodexEnabled,
+                PinnedAccount = CodexPinnedAccount, Email = CodexEmail, Home = CodexHome, CliFallback = CodexCliFallback, Executable = CodexExecutable });
+        if (ClaudeEnabled || ClaudeAccountLabel.Length > 0)
+            list.Add(new() { Id = AccountNames.PrimaryId(Provider.Claude), Provider = Provider.Claude, Enabled = ClaudeEnabled,
+                Label = ClaudeAccountLabel, Snapshot = ClaudeSnapshot });
+        list.AddRange(ExtraAccounts);
+        return list;
+    }
+
+    /// <summary>Profiles with their display names and preferences. A primary account is shown in the strip unless the user says otherwise.</summary>
+    public IReadOnlyList<AccountEntry> Accounts()
+    {
+        var prefs = new Dictionary<string, AccountPreference>(AccountPrefs);
+        foreach (var provider in Enum.GetValues<Provider>())
+            prefs.TryAdd(AccountNames.PrimaryId(provider), new AccountPreference { ShowInStrip = true });
+        return AccountNames.Resolve(Profiles(), prefs);
+    }
+
+    public DesktopSettings WithPreference(string profileId, AccountPreference preference) =>
+        this with { AccountPrefs = new(AccountPrefs) { [profileId] = preference with { Alias = AccountNames.NormalizeAlias(preference.Alias) } } };
+
+    public DesktopSettings AddAccount(AccountProfile profile)
+    {
+        profile.Validate();
+        if (profile.Id.StartsWith("primary-", StringComparison.Ordinal) || Profiles().Any(p => p.Id == profile.Id))
+            throw new UsageException(FailureKind.Schema, "account_profile_duplicate");
+        return this with { ExtraAccounts = [.. ExtraAccounts, profile] };
+    }
+
+    public DesktopSettings RemoveAccount(string profileId) => this with
+    {
+        ExtraAccounts = ExtraAccounts.Where(p => p.Id != profileId).ToList(),
+        AccountPrefs = AccountPrefs.Where(p => p.Key != profileId).ToDictionary(p => p.Key, p => p.Value)
+    };
+
+    /// <summary>Connection identity of one profile; changes whenever what the connection reads changes.</summary>
+    public static string SelectionId(AccountProfile p) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(
+        new[] { p.Provider.ToString(), p.Enabled.ToString(), p.Identity, p.CredentialTarget ?? "", p.Home, p.Snapshot, p.Executable, p.PinnedAccount ?? "" })));
+
+    public static IUsageProvider? CreateProvider(AccountProfile p, UsageHttp http) => !p.Enabled ? null : p.Provider switch
+    {
+        Provider.Copilot => new CopilotProvider(http, p.Login, p.CredentialTarget, p.PinnedAccount,
+            string.IsNullOrWhiteSpace(p.Executable) ? null : p.Executable),
+        Provider.Codex => new CodexProvider(http, p.Home, p.Email, p.Executable, p.CliFallback, p.PinnedAccount),
+        _ => new ClaudeProvider(p.Snapshot, AccountKey.FromIdentity(Provider.Claude, p.Label))
+    };
 
     public void Validate()
+    {
+        if (ExtraAccounts is null || AccountPrefs is null) throw new UsageException(FailureKind.Schema, "settings_invalid");
+        foreach (var extra in ExtraAccounts) extra.Validate();
+        if (ExtraAccounts.Select(p => p.Id).Distinct().Count() != ExtraAccounts.Count ||
+            ExtraAccounts.Any(p => p.Id.StartsWith("primary-", StringComparison.Ordinal)))
+            throw new UsageException(FailureKind.Schema, "account_profile_duplicate");
+        foreach (var preference in AccountPrefs.Values) AccountNames.NormalizeAlias(preference.Alias);
+        ValidatePrimary();
+    }
+
+    private void ValidatePrimary()
     {
         if (Version != 1 || ConnectionResults is null || !Enum.IsDefined(Language) ||
             !Enum.IsDefined(CopilotMode) || !Enum.IsDefined(CodexMode) || !Enum.IsDefined(ClaudeMode) ||
