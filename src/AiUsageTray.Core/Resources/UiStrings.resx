@@ -312,4 +312,27 @@ Shown after quota total and period are available.</value></data>
   <data name="UsageStripFresh" xml:space="preserve"><value>Current</value></data>
   <data name="UsageStripFetchFailed" xml:space="preserve"><value>Fetch failed</value></data>
   <data name="UsageStripLastFetch" xml:space="preserve"><value>Last fetched: {0}</value></data>
+  <data name="AccountsHeading" xml:space="preserve"><value>Accounts</value></data>
+  <data name="AccountsNote" xml:space="preserve"><value>Usage from accounts of the same service is never summed. Aliases are stored only on this PC.</value></data>
+  <data name="AddAccount" xml:space="preserve"><value>Add account…</value></data>
+  <data name="RemoveAccount" xml:space="preserve"><value>Remove</value></data>
+  <data name="RemoveAccountConfirm" xml:space="preserve"><value>Remove the account configuration “{0}”? Its usage history will not be deleted.</value></data>
+  <data name="AccountName" xml:space="preserve"><value>Name</value></data>
+  <data name="AccountShow" xml:space="preserve"><value>Show</value></data>
+  <data name="AccountStrip" xml:space="preserve"><value>In strip</value></data>
+  <data name="AccountService" xml:space="preserve"><value>Service</value></data>
+  <data name="AccountIdentity" xml:space="preserve"><value>Account</value></data>
+  <data name="PrimaryAccount" xml:space="preserve"><value>primary</value></data>
+  <data name="AccountLocalStorageNote" xml:space="preserve"><value>Account names and connection paths are saved in this PC's settings. Passwords and tokens are not stored.</value></data>
+  <data name="AccountSettingsInvalid" xml:space="preserve"><value>Check the account name or connection settings.</value></data>
+  <data name="FindGithubAccounts" xml:space="preserve"><value>Find signed-in GitHub accounts</value></data>
+  <data name="GithubCandidates" xml:space="preserve"><value>GitHub accounts available in GitHub CLI</value></data>
+  <data name="GithubActive" xml:space="preserve"><value>active</value></data>
+  <data name="GithubNoNewAccounts" xml:space="preserve"><value>No new GitHub CLI accounts found. Only accounts signed in with “gh auth login” whose status is successful are listed.</value></data>
+  <data name="DetectionConditions" xml:space="preserve"><value>What can be detected: GitHub CLI logins (successful status only). Codex and Claude are not detected automatically; enter their paths yourself.</value></data>
+  <data name="VscodeBridgeNotInstalled" xml:space="preserve"><value>No VS Code connection data exists yet. Install the companion extension (integrations/vscode), then run “Agent Usage Monitor: Connect GitHub accounts” in VS Code.</value></data>
+  <data name="AccountAlreadyConfigured" xml:space="preserve"><value>This account is already configured.</value></data>
+  <data name="FindVscodeAccounts" xml:space="preserve"><value>Find VS Code accounts</value></data>
+  <data name="VscodeBridgeHelp" xml:space="preserve"><value>Run “Agent Usage Monitor: Connect GitHub accounts” in VS Code first. The extension stores only account identity and quota values locally; tokens stay in VS Code.</value></data>
+  <data name="VscodeNoNewAccounts" xml:space="preserve"><value>No VS Code accounts with a snapshot from the last 15 minutes were found (or they are already added). Keep VS Code running, run the extension command, and try again.</value></data>
 </root>

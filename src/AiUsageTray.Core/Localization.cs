@@ -59,7 +59,12 @@ public enum UiText
     AutoPinRequired, CandidateMissing, ClaudeNeedsConfirmation, StartupExecutableRequired,
     PendingSettingsRequired, NotificationSettingsRequired, QuotaSettingsRequired, VerificationStartupBlocked,
     DemoReadOnly, PanelRequired, ConsumptionViewMissing, HostStopped,
-    UsageStripWaiting, UsageStripFresh, UsageStripFetchFailed, UsageStripLastFetch
+    UsageStripWaiting, UsageStripFresh, UsageStripFetchFailed, UsageStripLastFetch,
+    AccountsHeading, AccountsNote, AddAccount, RemoveAccount, RemoveAccountConfirm,
+    AccountName, AccountShow, AccountStrip, AccountService, AccountIdentity, PrimaryAccount,
+    AccountLocalStorageNote, AccountSettingsInvalid, FindGithubAccounts, GithubCandidates,
+    GithubActive, GithubNoNewAccounts, AccountAlreadyConfigured, FindVscodeAccounts,
+    VscodeBridgeHelp, VscodeNoNewAccounts, DetectionConditions, VscodeBridgeNotInstalled
 }
 
 public sealed class UiLocalizer
@@ -157,6 +162,8 @@ public sealed class UiLocalizer
             "settings_pin_invalid" => UiText.PinnedAccountInvalid,
             "settings_auto_pin_required" => UiText.AutoPinRequired,
             "settings_candidate_missing" => UiText.CandidateMissing,
+            "account_profile_invalid" or "account_profile_incomplete" or "account_profile_duplicate" or
+                "account_alias_invalid" => UiText.AccountSettingsInvalid,
             "settings_claude_confirmation_required" => UiText.ClaudeNeedsConfirmation,
             "settings_startup_executable_required" => UiText.StartupExecutableRequired,
             "settings_notification_number_invalid" => UiText.NotificationNumberInvalid,

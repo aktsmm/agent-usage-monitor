@@ -312,4 +312,27 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="UsageStripFresh" xml:space="preserve"><value>最新</value></data>
   <data name="UsageStripFetchFailed" xml:space="preserve"><value>取得失敗</value></data>
   <data name="UsageStripLastFetch" xml:space="preserve"><value>最終取得: {0}</value></data>
+  <data name="AccountsHeading" xml:space="preserve"><value>アカウント</value></data>
+  <data name="AccountsNote" xml:space="preserve"><value>同じサービスの使用量は合算しません。別名はこのPCだけに保存します。</value></data>
+  <data name="AddAccount" xml:space="preserve"><value>アカウントを追加…</value></data>
+  <data name="RemoveAccount" xml:space="preserve"><value>削除</value></data>
+  <data name="RemoveAccountConfirm" xml:space="preserve"><value>アカウント設定「{0}」を削除しますか？利用履歴自体は削除されません。</value></data>
+  <data name="AccountName" xml:space="preserve"><value>表示名</value></data>
+  <data name="AccountShow" xml:space="preserve"><value>表示</value></data>
+  <data name="AccountStrip" xml:space="preserve"><value>小型表示</value></data>
+  <data name="AccountService" xml:space="preserve"><value>サービス</value></data>
+  <data name="AccountIdentity" xml:space="preserve"><value>アカウント</value></data>
+  <data name="PrimaryAccount" xml:space="preserve"><value>基本</value></data>
+  <data name="AccountLocalStorageNote" xml:space="preserve"><value>アカウント名やパスなどの接続情報はこのPCの設定に保存されます。パスワードやtokenは保存しません。</value></data>
+  <data name="AccountSettingsInvalid" xml:space="preserve"><value>アカウント名または接続設定を確認してください。</value></data>
+  <data name="FindGithubAccounts" xml:space="preserve"><value>GitHubログインを検出</value></data>
+  <data name="GithubCandidates" xml:space="preserve"><value>GitHub CLIで利用できるアカウント</value></data>
+  <data name="GithubActive" xml:space="preserve"><value>現在有効</value></data>
+  <data name="GithubNoNewAccounts" xml:space="preserve"><value>新しいGitHub CLIアカウントが見つかりません。「gh auth login」済みで状態が成功のアカウントだけが対象です。</value></data>
+  <data name="DetectionConditions" xml:space="preserve"><value>検出できるもの: GitHub CLIのログイン（状態が成功のみ）。CodexとClaudeは自動検出しないため、パスを自分で指定してください。</value></data>
+  <data name="VscodeBridgeNotInstalled" xml:space="preserve"><value>VS Codeの連携データがまだありません。連携拡張（integrations/vscode）をインストールし、VS Codeで「Agent Usage Monitor: Connect GitHub accounts」を実行してください。</value></data>
+  <data name="AccountAlreadyConfigured" xml:space="preserve"><value>このアカウントはすでに設定されています。</value></data>
+  <data name="FindVscodeAccounts" xml:space="preserve"><value>VS Codeのアカウントを検出</value></data>
+  <data name="VscodeBridgeHelp" xml:space="preserve"><value>先にVS Codeで「Agent Usage Monitor: Connect GitHub accounts」を実行してください。拡張機能はアカウント情報と枠の数値だけをローカル保存し、tokenはVS Code内に保持します。</value></data>
+  <data name="VscodeNoNewAccounts" xml:space="preserve"><value>15分以内に更新されたVS Codeアカウントのスナップショットがありません（または追加済みです）。VS Codeを起動したまま拡張機能のコマンドを実行し、再試行してください。</value></data>
 </root>

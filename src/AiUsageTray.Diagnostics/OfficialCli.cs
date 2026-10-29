@@ -3,6 +3,8 @@ using AiUsageTray.Core;
 
 namespace AiUsageTray.Diagnostics;
 
+public sealed record GithubLoginCandidate(string Login, bool Active);
+
 public static class OfficialCli
 {
     public static string? Resolve(string name, string? searchPath = null)
@@ -50,20 +52,84 @@ public static class OfficialCli
             ?? throw new UsageException(FailureKind.Schema, "github_active_login_schema");
     }
 
+    public static IReadOnlyList<GithubLoginCandidate> GithubLoginCandidates(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("hosts", out var hosts) || hosts.ValueKind != JsonValueKind.Object ||
+            !hosts.TryGetProperty("github.com", out var entries) || entries.ValueKind != JsonValueKind.Array)
+            throw new UsageException(FailureKind.Schema, "github_status_schema");
+
+        var logins = new List<(string Login, string State, bool Active)>();
+        foreach (var item in entries.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+                throw new UsageException(FailureKind.Schema, "github_status_schema");
+            var login = QuotaParsers.Text(item, "login");
+            var state = QuotaParsers.Text(item, "state");
+            if (string.IsNullOrWhiteSpace(login) || state is null)
+                throw new UsageException(FailureKind.Schema, "github_login_schema");
+            var hasActive = item.TryGetProperty("active", out var selected);
+            if (hasActive && selected.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                throw new UsageException(FailureKind.Schema, "github_login_schema");
+            var active = hasActive && selected.ValueKind == JsonValueKind.True;
+            logins.Add((login, state, active));
+        }
+
+        return logins.GroupBy(item => item.Login, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.All(item => item.State == "success"))
+            .Select(group => new GithubLoginCandidate(group.First().Login, group.Any(item => item.Active)))
+            .OrderByDescending(candidate => candidate.Active)
+            .ThenBy(candidate => candidate.Login, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public static async Task<IReadOnlyList<GithubLoginCandidate>> DiscoverGithubAccountsAsync(string executable,
+        CancellationToken cancellationToken,
+        Func<string, string[], CancellationToken, Task<(int ExitCode, string Output)>>? capture = null)
+    {
+        executable = ValidateExecutable(executable);
+        capture ??= ReadOnlyProcess.CaptureResultAsync;
+        var result = await capture(executable,
+            ["auth", "status", "--hostname", "github.com", "--json", "hosts"], cancellationToken);
+        if (result.ExitCode != 0)
+            throw new UsageException(FailureKind.Cli, "github_status_failed");
+        using var status = JsonDocument.Parse(result.Output);
+        return GithubLoginCandidates(status.RootElement);
+    }
+
+    public static string ConfiguredGithubLogin(JsonElement root, string expectedLogin)
+    {
+        if (!root.TryGetProperty("hosts", out var hosts) || hosts.ValueKind != JsonValueKind.Object ||
+            !hosts.TryGetProperty("github.com", out var entries) || entries.ValueKind != JsonValueKind.Array)
+            throw new UsageException(FailureKind.Schema, "github_status_schema");
+        var matches = entries.EnumerateArray().Where(item =>
+            string.Equals(QuotaParsers.Text(item, "login"), expectedLogin, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (matches.Length == 0)
+            throw new UsageException(FailureKind.MissingCredential, "github_login_not_configured");
+        if (matches.Any(item => QuotaParsers.Text(item, "state") != "success"))
+            throw new UsageException(FailureKind.Unauthorized, "github_login_invalid");
+        return QuotaParsers.Text(matches[0], "login")
+            ?? throw new UsageException(FailureKind.Schema, "github_login_schema");
+    }
+
     public static async Task<string> GithubTokenAsync(string executable, string? expectedLogin,
         CancellationToken cancellationToken,
         Func<string, string[], CancellationToken, Task<(int ExitCode, string Output)>>? capture = null)
     {
         executable = ValidateExecutable(executable);
         capture ??= ReadOnlyProcess.CaptureResultAsync;
-        var statusResult = await capture(executable,
-            ["auth", "status", "--active", "--hostname", "github.com", "--json", "hosts"], cancellationToken);
+        var statusArgs = expectedLogin is null
+            ? new[] { "auth", "status", "--active", "--hostname", "github.com", "--json", "hosts" }
+            : ["auth", "status", "--hostname", "github.com", "--json", "hosts"];
+        var statusResult = await capture(executable, statusArgs, cancellationToken);
         if (statusResult.ExitCode != 0) throw new UsageException(FailureKind.Cli, "github_status_failed");
         using var status = JsonDocument.Parse(statusResult.Output);
-        var active = ActiveGithubLogin(status.RootElement);
-        if (expectedLogin is not null && !string.Equals(active, expectedLogin, StringComparison.OrdinalIgnoreCase))
-            throw new UsageException(FailureKind.AccountMismatch, "github_account_mismatch");
-        var tokenResult = await capture(executable, ["auth", "token", "--hostname", "github.com"], cancellationToken);
+        var login = expectedLogin is null ? ActiveGithubLogin(status.RootElement)
+            : ConfiguredGithubLogin(status.RootElement, expectedLogin);
+        var tokenArgs = expectedLogin is null
+            ? new[] { "auth", "token", "--hostname", "github.com" }
+            : ["auth", "token", "--hostname", "github.com", "--user", login];
+        var tokenResult = await capture(executable, tokenArgs, cancellationToken);
         if (tokenResult.ExitCode != 0) throw new UsageException(FailureKind.MissingCredential, "github_token_missing");
         var token = tokenResult.Output.Trim();
         if (string.IsNullOrWhiteSpace(token))

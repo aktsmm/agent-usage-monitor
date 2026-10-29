@@ -1,0 +1,50 @@
+{
+  "name": "agent-usage-monitor-vscode",
+  "displayName": "Agent Usage Monitor",
+  "description": "Locally shares GitHub Copilot quota snapshots with Agent Usage Monitor.",
+  "version": "0.1.0",
+  "publisher": "aktsmm",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aktsmm/agent-usage-monitor"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "vscode": "^1.140.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:agentUsageMonitor.connectGithubAccounts",
+    "onCommand:agentUsageMonitor.clearLocalSnapshots"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentUsageMonitor.connectGithubAccounts",
+        "title": "Agent Usage Monitor: Connect GitHub accounts"
+      },
+      {
+        "command": "agentUsageMonitor.clearLocalSnapshots",
+        "title": "Agent Usage Monitor: Clear local snapshots"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "test": "npm run compile && node --test test/protocol.test.cjs test/manifest.test.cjs",
+    "package": "npm run compile && vsce package --out artifacts/vsix/agent-usage-monitor-vscode-0.1.0.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.140.0",
+    "@vscode/vsce": "3.9.2",
+    "typescript": "^5.8.0"
+  }
+}

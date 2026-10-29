@@ -39,6 +39,8 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox claude = Check("");
     private readonly TextBox claudeFile = new();
     private readonly TextBox claudeLabel = new();
+    private readonly StackPanel accountRows = Panel();
+    private readonly Dictionary<string, AccountRow> accountEditors = [];
     private readonly ComboBox theme = new();
     private readonly CheckBox autostart = Check("");
     private readonly CheckBox autoUpdate = Check("");
@@ -63,6 +65,7 @@ public sealed class SettingsWindow : Window
     private QuotaKey? selected;
     private bool changing;
     private int selectedIndex;
+    private sealed record AccountRow(TextBox Alias, CheckBox Visible, CheckBox InStrip, string DefaultName);
 
     public SettingsWindow(App app, bool showAppearance = false)
     {
@@ -144,8 +147,10 @@ public sealed class SettingsWindow : Window
         language.SelectionChanged += (_, _) =>
         {
             if (!ready || changing) return;
+            draft = ReadAccountPreferences(draft);
             locale = new UiLocalizer((DisplayLanguage)((ComboBoxItem)language.SelectedItem).Tag);
             foreach (var apply in translations) apply();
+            LoadAccountRows(draft);
             MarkDirty(); RenderStatus(); RenderAllocation();
         };
         strip.Checked += (_, _) => { if (ready && !changing) stripEdited = true; };
@@ -202,6 +207,13 @@ public sealed class SettingsWindow : Window
     {
         var panel = Panel();
         panel.Children.Add(Label(UiText.ConnectionIntro));
+        panel.Children.Add(Label(UiText.AccountsHeading));
+        panel.Children.Add(Label(UiText.AccountsNote));
+        accountRows.Children.Clear();
+        panel.Children.Add(accountRows);
+        var addAccount = Button(UiText.AddAccount);
+        addAccount.Click += (_, _) => AddAccount();
+        panel.Children.Add(addAccount);
         panel.Children.Add(Label(UiText.CandidateNote));
         migration.Children.Add(Label(UiText.LegacyConnectionNote));
         var migrate = Button(UiText.LegacyEnable);
@@ -338,6 +350,7 @@ public sealed class SettingsWindow : Window
         bool previous = changing;
         changing = true;
         var s = draft;
+        LoadAccountRows(s);
         copilot.IsChecked = s.CopilotEnabled; login.Text = s.GithubLogin; target.Text = s.GithubCredentialTarget ?? "";
         codex.IsChecked = s.CodexEnabled; email.Text = s.CodexEmail; codexHome.Text = s.CodexHome;
         codexExe.Text = s.CodexExecutable; fallback.IsChecked = s.CodexCliFallback;
@@ -348,6 +361,118 @@ public sealed class SettingsWindow : Window
         autostart.IsChecked = s.StartAtLogon;
         autoUpdate.IsChecked = s.AutoUpdateEnabled;
         changing = previous;
+    }
+
+    private void LoadAccountRows(DesktopSettings settings)
+    {
+        accountRows.Children.Clear();
+        accountEditors.Clear();
+        var header = new Grid { Margin = new Thickness(0, 8, 0, 3) };
+        header.ColumnDefinitions.Add(new() { Width = new GridLength(78) });
+        header.ColumnDefinitions.Add(new() { Width = new GridLength(105) });
+        header.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+        foreach (var (text, column) in new[] { (UiText.Service, 0), (UiText.AccountIdentity, 1),
+                     (UiText.AccountName, 2), (UiText.AccountShow, 3), (UiText.AccountStrip, 4) })
+        {
+            var label = Label(locale.Text(text));
+            label.FontSize = 11;
+            label.FontWeight = FontWeights.SemiBold;
+            Grid.SetColumn(label, column);
+            header.Children.Add(label);
+        }
+        accountRows.Children.Add(header);
+        foreach (var entry in settings.Accounts())
+        {
+            var profile = entry.Profile;
+            var preference = entry.Preference;
+            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new() { Width = new GridLength(78) });
+            row.ColumnDefinitions.Add(new() { Width = new GridLength(105) });
+            row.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            var service = Label(ConnectionText.Name(profile.Provider));
+            service.FontSize = 11;
+            Grid.SetColumn(service, 0);
+            row.Children.Add(service);
+            var account = Label(AccountNames.Auto(profile) + (entry.IsPrimary ? " · " + locale.Text(UiText.PrimaryAccount) : ""));
+            account.FontSize = 11;
+            account.TextTrimming = TextTrimming.CharacterEllipsis;
+            Grid.SetColumn(account, 1);
+            row.Children.Add(account);
+            var rowName = ConnectionText.Name(profile.Provider) + " " + entry.Name;
+            var alias = new TextBox { Text = preference.Alias ?? entry.Name, ToolTip = entry.Name, Margin = new Thickness(2) };
+            AutomationProperties.SetName(alias, locale.Text(UiText.AccountName) + ": " + rowName);
+            alias.SetResourceReference(Control.BackgroundProperty, "BackgroundBrush");
+            alias.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+            Grid.SetColumn(alias, 2);
+            row.Children.Add(alias);
+            var visible = Check("");
+            visible.IsChecked = preference.Visible;
+            visible.ToolTip = locale.Text(UiText.AccountShow);
+            AutomationProperties.SetName(visible, locale.Text(UiText.AccountShow) + ": " + rowName);
+            Grid.SetColumn(visible, 3);
+            row.Children.Add(visible);
+            var inStrip = Check("");
+            inStrip.IsChecked = preference.ShowInStrip;
+            inStrip.ToolTip = locale.Text(UiText.AccountStrip);
+            AutomationProperties.SetName(inStrip, locale.Text(UiText.AccountStrip) + ": " + rowName);
+            Grid.SetColumn(inStrip, 4);
+            row.Children.Add(inStrip);
+            accountEditors[profile.Id] = new(alias, visible, inStrip, entry.Name);
+            accountRows.Children.Add(row);
+            if (!entry.IsPrimary)
+            {
+                var removeText = locale.Text(UiText.RemoveAccount);
+                var remove = new Button { Content = removeText };
+                AutomationProperties.SetName(remove, removeText + ": " + rowName);
+                remove.HorizontalAlignment = HorizontalAlignment.Right;
+                remove.Click += (_, _) =>
+                {
+                    if (MessageBox.Show(this, locale.Format(UiText.RemoveAccountConfirm, rowName),
+                        locale.Text(UiText.AgentUsage), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                        return;
+                    draft = ReadAccountPreferences(draft).RemoveAccount(profile.Id);
+                    LoadAccountRows(draft);
+                    MarkDirty();
+                };
+                accountRows.Children.Add(remove);
+            }
+        }
+    }
+
+    private DesktopSettings ReadAccountPreferences(DesktopSettings settings)
+    {
+        foreach (var entry in settings.Accounts())
+            if (accountEditors.TryGetValue(entry.Profile.Id, out var editor))
+                settings = settings.WithPreference(entry.Profile.Id, new AccountPreference
+                {
+                    Alias = string.Equals(editor.Alias.Text.Trim(), editor.DefaultName, StringComparison.Ordinal)
+                        ? null : editor.Alias.Text,
+                    Visible = editor.Visible.IsChecked == true,
+                    ShowInStrip = editor.InStrip.IsChecked == true
+                });
+        return settings;
+    }
+
+    private void AddAccount()
+    {
+        var editor = new AccountProfileDialog(locale, draft.Profiles()) { Owner = this };
+        if (editor.ShowDialog() != true || editor.Profile is not { } profile) return;
+        if (draft.Profiles().Any(existing => existing.IsSameAccountAs(profile)))
+        {
+            error.Text = locale.Text(UiText.AccountAlreadyConfigured);
+            return;
+        }
+        try
+        {
+            draft = ReadAccountPreferences(draft).AddAccount(profile);
+            LoadAccountRows(draft);
+            MarkDirty();
+        }
+        catch (UsageException ex) { error.Text = locale.Error(ex.SafeCode); }
     }
 
     public void RenderStatus()
@@ -443,7 +568,7 @@ public sealed class SettingsWindow : Window
         try
         {
             SaveRule();
-            var settings = ConnectionEdits.Apply(draft, ReadFields());
+            var settings = ReadAccountPreferences(ConnectionEdits.Apply(draft, ReadFields()));
             foreach (var provider in Enum.GetValues<Provider>())
                 if (!adopted.Contains(provider) && settings.SelectionId(provider) == draft.SelectionId(provider) &&
                     settings.Mode(provider) == draft.Mode(provider) &&

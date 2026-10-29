@@ -30,13 +30,14 @@ public abstract class SafeProvider : IUsageProvider
 }
 
 public sealed class CopilotProvider(UsageHttp http, string expectedLogin, string? credentialTarget = null,
-    string? expectedAccount = null, string? executable = null) : SafeProvider
+    string? expectedAccount = null, string? executable = null,
+    Func<string, string[], CancellationToken, Task<(int ExitCode, string Output)>>? commands = null) : SafeProvider
 {
     protected override async Task<FetchResult> FetchCoreAsync(CancellationToken cancellationToken)
     {
         var token = credentialTarget is null
             ? await OfficialCli.GithubTokenAsync(executable ?? OfficialCli.Resolve("gh") ??
-                throw new UsageException(FailureKind.Cli, "github_cli_missing"), expectedLogin, cancellationToken)
+                throw new UsageException(FailureKind.Cli, "github_cli_missing"), expectedLogin, cancellationToken, commands)
             : WindowsCredential.Read(credentialTarget);
         if (string.IsNullOrWhiteSpace(token))
             throw new UsageException(FailureKind.MissingCredential, "github_token_missing");
@@ -51,15 +52,40 @@ public sealed class CopilotProvider(UsageHttp http, string expectedLogin, string
             throw new UsageException(FailureKind.AccountMismatch, "github_user_id_mismatch");
         using var usage = await http.GetAsync(new("https://api.github.com/copilot_internal/user"),
             "token", token, cancellationToken);
-        if (credentialTarget is null)
-        {
-            using var selected = JsonDocument.Parse(await ReadOnlyProcess.CaptureAsync(
-                executable ?? OfficialCli.Resolve("gh") ?? throw new UsageException(FailureKind.Cli, "github_cli_missing"),
-                ["auth", "status", "--active", "--hostname", "github.com", "--json", "hosts"], cancellationToken));
-            if (!string.Equals(OfficialCli.ActiveGithubLogin(selected.RootElement), expectedLogin, StringComparison.OrdinalIgnoreCase))
-                throw new UsageException(FailureKind.AccountMismatch, "github_account_changed_during_fetch");
-        }
         return new(QuotaParsers.Copilot(usage.RootElement, account, DateTimeOffset.UtcNow), []);
+    }
+}
+
+public sealed class VscodeCopilotProvider(string expectedLogin, string userId, string? expectedAccount = null,
+    string? snapshotDirectory = null) : SafeProvider
+{
+    protected override async Task<FetchResult> FetchCoreAsync(CancellationToken cancellationToken)
+    {
+        var path = VscodeCopilotBridge.SnapshotPath(userId, snapshotDirectory);
+        if (!File.Exists(path))
+            throw new UsageException(FailureKind.MissingCredential, "vscode_snapshot_missing");
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var document = await VscodeCopilotBridge.ParseLimitedAsync(stream,
+            VscodeCopilotBridge.MaximumSnapshotBytes, "vscode_snapshot_too_large", cancellationToken);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number ||
+            !version.TryGetInt32(out var snapshotVersion) || snapshotVersion != 1 ||
+            QuotaParsers.Text(root, "userId") != userId ||
+            !string.Equals(QuotaParsers.Text(root, "login"), expectedLogin, StringComparison.OrdinalIgnoreCase))
+            throw new UsageException(FailureKind.AccountMismatch, "vscode_snapshot_identity_mismatch");
+        if (!DateTimeOffset.TryParse(QuotaParsers.Text(root, "observedAt"),
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var observedAt) ||
+            observedAt > DateTimeOffset.UtcNow.AddMinutes(1))
+            throw new UsageException(FailureKind.Schema, "vscode_snapshot_timestamp_invalid");
+        if (!root.TryGetProperty("usage", out var usage) || usage.ValueKind != JsonValueKind.Object)
+            throw new UsageException(FailureKind.Schema, "vscode_snapshot_usage_missing");
+        var account = AccountKey.FromIdentity(Provider.Copilot, "github.com:" + userId);
+        if (expectedAccount is not null && account.Id != expectedAccount)
+            throw new UsageException(FailureKind.AccountMismatch, "github_user_id_mismatch");
+        return new(QuotaParsers.Copilot(usage, account, observedAt), []);
     }
 }
 

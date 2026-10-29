@@ -23,7 +23,8 @@ public static class ReadOnlyProcess
             info.ArgumentList.Add(argument);
         info.Environment.Remove("TYPESAFE_API_KEY");
         foreach (var name in new[] { "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_ACCESS_TOKEN",
-            "COPILOT_PROVIDER_API_KEY", "AZURE_OPENAI_API_KEY" })
+            "COPILOT_PROVIDER_API_KEY", "AZURE_OPENAI_API_KEY", "GH_TOKEN", "GITHUB_TOKEN",
+            "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN" })
             info.Environment.Remove(name);
         if (codexHome is not null)
             info.Environment["CODEX_HOME"] = codexHome;

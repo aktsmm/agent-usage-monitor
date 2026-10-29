@@ -108,6 +108,8 @@ public sealed record NotificationRules
 public sealed record QuotaRule(QuotaKey Key, NotificationRules Rules, bool Enabled = true);
 public sealed record ProviderBinding(Provider Provider, string SelectionId);
 
+public sealed record SlotBinding(string Slot, string SelectionId);
+
 public sealed record PollingOptions
 {
     public TimeSpan Interval { get; init; } = TimeSpan.FromMinutes(5);
@@ -129,6 +131,7 @@ public sealed class UsageState
     public NotificationRules Rules { get; set; } = new();
     public List<QuotaRule> QuotaRules { get; set; } = [];
     public List<ProviderBinding> ProviderBindings { get; set; } = [];
+    public List<SlotBinding> SlotBindings { get; set; } = [];
     public PollingOptions Polling { get; set; } = new();
     public List<QuotaSnapshot> Latest { get; set; } = [];
     public List<QuotaSnapshot> Baselines { get; set; } = [];
@@ -149,11 +152,32 @@ public sealed class UsageState
         foreach (var snapshot in Latest.Concat(Baselines)) snapshot.Validate();
     }
 
-    public void Bind(Provider provider, string selectionId)
+    public void Bind(Provider provider, string selectionId, IReadOnlySet<string>? keepAccounts = null)
     {
+        // keepAccounts: accounts of the same service that belong to other connections and must survive a change of this one.
         if (ProviderBindings.SingleOrDefault(b => b.Provider == provider)?.SelectionId != selectionId)
-            Latest.RemoveAll(s => s.Key.Account.Provider == provider);
+            Latest.RemoveAll(s => s.Key.Account.Provider == provider && keepAccounts?.Contains(s.Key.Account.Id) != true);
         ProviderBindings.RemoveAll(b => b.Provider == provider);
         ProviderBindings.Add(new(provider, selectionId));
+    }
+
+    /// <summary>Binds one additional account connection. A changed selection drops only that account's cached values.</summary>
+    public void BindSlot(string slot, string selectionId, string? accountId)
+    {
+        if (SlotBindings.SingleOrDefault(b => b.Slot == slot)?.SelectionId != selectionId && accountId is not null)
+            Latest.RemoveAll(s => s.Key.Account.Id == accountId);
+        SlotBindings.RemoveAll(b => b.Slot == slot);
+        SlotBindings.Add(new(slot, selectionId));
+    }
+
+    /// <summary>Forgets bindings of connections that no longer exist (their cached values go with them).</summary>
+    public void PruneSlots(IReadOnlySet<string> liveSlots, IReadOnlyDictionary<string, string?> accountBySlot)
+    {
+        foreach (var gone in SlotBindings.Where(b => !liveSlots.Contains(b.Slot)).ToList())
+        {
+            if (accountBySlot.TryGetValue(gone.Slot, out var account) && account is not null)
+                Latest.RemoveAll(s => s.Key.Account.Id == account);
+            SlotBindings.Remove(gone);
+        }
     }
 }

@@ -27,6 +27,9 @@ public sealed class TrayHost
     private readonly string pipeName = "ai-usage-tray-" + Guid.NewGuid().ToString("N");
     private readonly Dictionary<Provider, UsageFailure?> failures = [];
     private readonly HashSet<Provider> verifiedSelections = [];
+    private readonly HashSet<string> verifiedAccounts = [];
+    private static HashSet<string> ExtraAccountIds(DesktopSettings s) => s.ExtraAccounts.Select(p => p.ExpectedAccount).OfType<string>().ToHashSet();
+    private bool IsVisible(QuotaSnapshot s) => verifiedSelections.Contains(s.Key.Account.Provider) || verifiedAccounts.Contains(s.Key.Account.Id);
     private UsageState state = new();
     private DesktopSettings settings = new();
     private StateStore? store;
@@ -129,7 +132,7 @@ public sealed class TrayHost
             if (!args.Contains("--profile"))
                 settings = settings with { StartAtLogon = StartupRegistration.IsEnabled(Environment.ProcessPath!) };
             foreach (var provider in Enum.GetValues<Provider>())
-                state.Bind(provider, settings.SelectionId(provider));
+                state.Bind(provider, settings.SelectionId(provider), ExtraAccountIds(settings));
             await settings.SaveAsync(settingsPath, stopping.Token);
             usageStrip = new NativeUsageStrip(tray.Handle, () => ShowPanel(false),
                 (x, y) => tray.ShowMenu(x, y), async position => await SaveStripPositionAsync(position),
@@ -317,7 +320,7 @@ public sealed class TrayHost
                     var updated = settings.CompleteDiscovery(selection, result, initial);
                     await updated.SaveAsync(settingsPath, stopping.Token);
                     settings = updated;
-                    state.Bind(provider, updated.SelectionId(provider));
+                    state.Bind(provider, updated.SelectionId(provider), ExtraAccountIds(updated));
                     if (initial && result.Status == DiscoveryStatus.Ready &&
                         updated.Mode(provider) == ConnectionMode.Automatic &&
                         updated.PinnedAccount(provider) == result.AccountKey && result.Usage is { } usage)
@@ -398,7 +401,7 @@ public sealed class TrayHost
     private void RefreshUsageStrip()
     {
         var selected = settings;
-        var snapshots = state.Latest.Where(s => verifiedSelections.Contains(s.Key.Account.Provider)).ToArray();
+        var snapshots = state.Latest.Where(IsVisible).ToArray();
         var age = state.Polling.MaximumAge;
         var failed = failures.Where(f => f.Value is not null).Select(f => f.Key).ToArray();
         context.Post(_ => usageStrip?.Update(selected, snapshots, age, failed), null);
@@ -526,7 +529,7 @@ public sealed class TrayHost
         var display = new UsageState
         {
             Rules = state.Rules, QuotaRules = state.QuotaRules,
-            Polling = state.Polling, Latest = state.Latest.Where(s => verifiedSelections.Contains(s.Key.Account.Provider)).ToList()
+            Polling = state.Polling, Latest = state.Latest.Where(IsVisible).ToList()
         };
         var quotas = display.Latest.Select(s => new QuotaView(s.Key,
             Budgets.Summarize(state, s, false), Budgets.Summarize(state, s, true))).ToList();
@@ -561,7 +564,7 @@ public sealed class TrayHost
         {
             if (previous.SelectionId(provider) != updated.SelectionId(provider))
                 verifiedSelections.Remove(provider);
-            state.Bind(provider, updated.SelectionId(provider));
+            state.Bind(provider, updated.SelectionId(provider), ExtraAccountIds(updated));
         }
         await store!.SaveAsync(state, cancellationToken);
         settings = updated;
@@ -573,10 +576,61 @@ public sealed class TrayHost
         context.Post(_ => StartDiscovery(null, initial: true), null);
     }
 
+    // Additional accounts of a service are polled on their own: a failure or mismatch of one never clears another account's values.
+    private async Task PollExtraAccountsAsync(Dictionary<string, int> counts, Dictionary<string, DateTimeOffset> next)
+    {
+        foreach (var profile in settings.ExtraAccounts.Where(p => p.Enabled).ToArray())
+        {
+            if (DateTimeOffset.UtcNow < next.GetValueOrDefault(profile.Id)) continue;
+            var selected = settings;
+            var fetcher = DesktopSettings.CreateProvider(profile, http);
+            if (fetcher is null) continue;
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token);
+            deadline.CancelAfter(state.Polling.Timeout);
+            FetchResult result;
+            try { result = await fetcher.FetchAsync(deadline.Token); }
+            catch (OperationCanceledException) when (!stopping.IsCancellationRequested)
+            { result = FetchResult.Failed(new(FailureKind.Timeout, "usage_fetch_timeout", DateTimeOffset.UtcNow)); }
+            await stateGate.WaitAsync(stopping.Token);
+            try
+            {
+                if (selected != settings) continue;
+                var expected = profile.ExpectedAccount;
+                counts[profile.Id] = result.Succeeded ? 0 : counts.GetValueOrDefault(profile.Id) + 1;
+                if (result.Failures.Any(f => f.Kind == FailureKind.AccountMismatch) && expected is not null)
+                {
+                    verifiedAccounts.Remove(expected);
+                    state.Latest.RemoveAll(s => s.Key.Account.Id == expected);
+                }
+                if (result.Succeeded && expected is null && profile.Provider is Provider.Copilot or Provider.Codex)
+                {
+                    var keys = result.Snapshots.Select(s => s.Key.Account.Id).Distinct().ToArray();
+                    if (keys.Length != 1) throw new UsageException(FailureKind.AccountMismatch, "usage_accounts_ambiguous");
+                    settings = settings with { ExtraAccounts = settings.ExtraAccounts.Select(p => p.Id == profile.Id ? p with { PinnedAccount = keys[0] } : p).ToList() };
+                    await settings.SaveAsync(settingsPath, stopping.Token);
+                    expected = keys[0];
+                }
+                state.BindSlot(profile.Id, DesktopSettings.SelectionId(profile), expected);
+                var retry = result.Failures.Select(f => f.RetryAfter ?? TimeSpan.Zero).DefaultIfEmpty().Max();
+                next[profile.Id] = DateTimeOffset.UtcNow + Polling.NextDelay(state.Polling, counts[profile.Id], retry);
+                int before = state.Deltas.Count;
+                var notices = UsageEngine.Apply(state, result, DateTimeOffset.UtcNow);
+                await RecordHistoryAsync(before, stopping.Token);
+                if (result.Succeeded && expected is not null) verifiedAccounts.Add(expected);
+                await store!.SaveAsync(state, stopping.Token);
+                RefreshUsageStrip();
+                if (notices.Count > 0)
+                    tray.Notify(Locale.Text(UiText.AgentUsage), string.Join("\n", notices.Select(NoticeText)));
+            }
+            finally { stateGate.Release(); }
+        }
+    }
     private async Task PollAsync()
     {
         var counts = Enum.GetValues<Provider>().ToDictionary(p => p, _ => 0);
         var next = Enum.GetValues<Provider>().ToDictionary(p => p, _ => DateTimeOffset.MinValue);
+        var extraCounts = new Dictionary<string, int>();
+        var extraNext = new Dictionary<string, DateTimeOffset>();
         try
         {
             while (!stopping.IsCancellationRequested)
@@ -611,7 +665,7 @@ public sealed class TrayHost
                             if (keys.Length != 1) throw new UsageException(FailureKind.AccountMismatch, "usage_accounts_ambiguous");
                             settings = settings.PinAccount(provider, keys[0]);
                             await settings.SaveAsync(settingsPath, stopping.Token);
-                            state.Bind(provider, settings.SelectionId(provider));
+                            state.Bind(provider, settings.SelectionId(provider), ExtraAccountIds(settings));
                         }
                         var retry = result.Failures.Select(f => f.RetryAfter ?? TimeSpan.Zero).DefaultIfEmpty().Max();
                         next[provider] = DateTimeOffset.UtcNow + Polling.NextDelay(state.Polling, counts[provider], retry);
@@ -626,6 +680,7 @@ public sealed class TrayHost
                     }
                     finally { stateGate.Release(); }
                 }
+                await PollExtraAccountsAsync(extraCounts, extraNext);
                 await stateGate.WaitAsync(stopping.Token);
                 try { await history!.RetryAsync(state.Polling.MaximumAge, stopping.Token); }
                 finally { stateGate.Release(); }
