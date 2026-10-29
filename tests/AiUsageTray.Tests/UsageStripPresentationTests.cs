@@ -83,6 +83,10 @@ static class UsageStripPresentationTests
             var view = UsageStripPresentation.Create(ja, [copilot], now, age);
             Check(view.Text == "Copilot 0%" && view.Tooltip.Contains("最終取得: 2026-10-13 00:00:00 JST"));
             Check(view.Tooltip.Contains("Claude · 取得待ち"));
+            var jaNotes = new UiLocalizer(DisplayLanguage.Japanese).Text(UiText.UsageStripNotes);
+            var enNotes = new UiLocalizer(DisplayLanguage.English).Text(UiText.UsageStripNotes);
+            Check(jaNotes.Contains("0%") && jaNotes.Contains("取得待ち") && view.Tooltip.Contains(jaNotes));
+            Check(enNotes.Contains("0%") && enNotes.Contains("Waiting"));
             Check(copilot.UsedPercent == 0 && settings.ClaudeEnabled);
         });
     }

@@ -9,8 +9,8 @@ WSL、独自クラウドバックエンドを必要としません。
 画像は架空データです。実アカウントのUsage・認証・ローカルパスは含みません。
 [ライト表示](docs/images/usage-demo-light.png)。
 
-**0.2.3はClaude Codeの数値連携を自動検出する版です。** 配布物は未署名です。
-[変更内容と検証の限界](docs/release-notes-0.2.3.md)を確認してください。
+**0.2.4は小型表示の利用率表示を明確化した版です。** 配布物は未署名です。
+[変更内容と検証の限界](docs/release-notes-0.2.4.md)を確認してください。
 
 ## できること
 
@@ -23,7 +23,7 @@ WSL、独自クラウドバックエンドを必要としません。
 - 日本語/English。Windows表示言語に合わせるか、設定で明示選択して保存。
 - JSTの日別履歴、7/30/90日・任意月の棒グラフ、period別表示と部分計測。
 - 履歴保存先の選択、月別ローテーション、検証付きZIP、保存フォルダー/ファイルを開く導線。
-- タスクバー上の軽量native小型表示。Copilot月間、Codex/Claude週間の契約使用率を表示。
+- タスクバー上の軽量native小型表示。Copilot月間、Codex/Claude週間の契約使用率を表示します。%は残量でなく使用率で、0%も取得済み値（表示時に丸められる場合あり）です。未取得は「取得待ち」と区別します。
 - インストーラー版のアプリ内更新確認、ポータブル版の公式Release案内。
 
 ## 使い始める
@@ -129,7 +129,7 @@ plan名から分母・token・creditsを推定しません。
 | --- | --- | --- |
 | Copilot | `gh auth status --active --hostname github.com --json hosts`の選択1件だけ。同じtokenで`/user`のloginとIDを照合・固定しUsage-only GET | `copilot_internal/user`は非公開API。ghがなくCopilot CLIだけの場合、正確な選択credentialのWindowsターゲットを文書から確定できないので自動接続未対応。詳細設定の指定1件は保持 |
 | Codex | `CODEX_HOME`または既定`~\.codex`の`auth.json`。ChatGPTのメールmetadataと選択account_idを固定しUsage-only GET | `wham/usage`は非公開API。`keyring/auto/ephemeral`等の別認証元は自動接続未対応。公式`account/read`はaccount_idを返さないためメールだけで代用しない |
-| Claude Code | CLIの存在・version・公式`claude auth status`を確認し、本人準備のstatusline scalar snapshotを利用 | 未ログインは「ログインが必要」。snapshotを現在account/configへ確実に結び付けられないため自動有効化しない。独自OAuth・Cookie・推論なし |
+| Claude Code | CLIの存在・version・公式`claude auth status`と、本人準備のstatusline scalar snapshotを確認 | snapshotの`account_id`が認証email由来の固定IDと一致した場合だけ自動有効化。一致しない・snapshotがない場合は有効化しない。独自OAuth・Cookie・推論なし |
 
 GitHubログイン/ID・Codexメール/account_idが一致しなければ止め、以前のUsageも非表示にします。
 次回起動でアカウントを勝手に切り替えません。無差別なcredential探索、

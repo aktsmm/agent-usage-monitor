@@ -184,7 +184,7 @@ Application is deferred while any window is open. After closing it, the app safe
   <data name="UpdateProfileBlocked" xml:space="preserve"><value>Verification profiles do not update the installed app.
 Check only: {0}</value></data>
   <data name="ShowUsageStrip" xml:space="preserve"><value>Show usage strip</value></data>
-  <data name="UsageStripNotes" xml:space="preserve"><value>Small native strip above the taskbar. Drag to reposition; double-click to open usage. Copilot monthly / Codex and Claude weekly. Missing and stale values are never zero.</value></data>
+  <data name="UsageStripNotes" xml:space="preserve"><value>Small native strip above the taskbar. Drag to reposition; double-click to open usage. Copilot monthly / Codex and Claude weekly. Percentages show used quota, not remaining. 0% is still a retrieved value (rounded for display); missing usage shows Waiting, and stale values are marked separately.</value></data>
   <data name="UsageStripAmbiguous" xml:space="preserve"><value>Multiple quotas; select the account/quota in History.</value></data>
   <data name="MonthlyQuota" xml:space="preserve"><value>Monthly quota</value></data>
   <data name="WeeklyQuota" xml:space="preserve"><value>Weekly quota</value></data>

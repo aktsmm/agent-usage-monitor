@@ -184,7 +184,7 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="UpdateProfileBlocked" xml:space="preserve"><value>検証プロファイルではアプリのインストール更新を実行しません。
 更新確認のみ: {0}</value></data>
   <data name="ShowUsageStrip" xml:space="preserve"><value>小型表示を表示</value></data>
-  <data name="UsageStripNotes" xml:space="preserve"><value>タスクバーの上の小さなnative表示。ドラッグで位置調整、ダブルクリックで利用状況を開きます。Copilot月間・Codex/Claude週間。未取得と古い値を0扱いしません。</value></data>
+  <data name="UsageStripNotes" xml:space="preserve"><value>タスクバーの上の小さなnative表示。ドラッグで位置調整、ダブルクリックで利用状況を開きます。Copilot月間・Codex/Claude週間。表示%は残量でなく使用率です。0%も取得済みの値（表示時に丸められる場合あり）で、未取得は取得待ち、古い値は別途表示します。</value></data>
   <data name="UsageStripAmbiguous" xml:space="preserve"><value>複数の枠があります。履歴でアカウント・枠を確認してください。</value></data>
   <data name="MonthlyQuota" xml:space="preserve"><value>月間枠</value></data>
   <data name="WeeklyQuota" xml:space="preserve"><value>週間枠</value></data>
