@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -548,18 +549,25 @@ Test("startup registration accepts only its owned install executable", () =>
 Test("update asset trust remains pinned to one repository", () =>
 {
     True(UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/download/v0.1.0/releases.win.json")));
+    True(UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES")));
+    True(UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES?packageId=AiUsageTrayDesktop")));
+    True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES?packageId=Foreign")));
+    True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES?packageId=AiUsageTrayDesktop&extra=1")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/ai-usage-monitor/releases/download/v0.1.0/releases.win.json")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/another/app/releases/download/v0.1.0/Setup.exe")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/ai-usage-tray/releases/download/v0.1.0/releases.win.json")));
     True(!UpdateFlow.TrustedDownload(new("http://github.com/aktsmm/agent-usage-monitor/releases/download/v0.1.0/Setup.exe")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com.example.com/aktsmm/agent-usage-monitor/releases/download/v0.1.0/Setup.exe")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/download/v0.1.0/Setup.exe?redirect=bad")));
+    True(UpdateFlow.TrustedReleaseRedirect(new("https://github.com/aktsmm/agent-usage-monitor/releases/download/v0.2.4/releases.win.json")));
+    True(!UpdateFlow.TrustedReleaseRedirect(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES")));
 });
 AsyncTest("portable update check handles absent public release without claiming latest", async () =>
 {
     using var client = new HttpClient(new FakeHandler(request =>
     {
-        Equal("https://api.github.com/repos/aktsmm/agent-usage-monitor/releases/latest", request.RequestUri!.AbsoluteUri);
+        Equal("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/releases.win.json",
+            request.RequestUri!.AbsoluteUri);
         True(request.Headers.Authorization is null);
         return new(HttpStatusCode.NotFound);
     }));
@@ -573,8 +581,17 @@ AsyncTest("portable update check handles absent public release without claiming 
 });
 AsyncTest("portable update check offers release page instead of replacing executable", async () =>
 {
-    using var client = new HttpClient(new FakeHandler(_ =>
-        new(HttpStatusCode.OK) { Content = new StringContent("""{"tag_name":"v99.0.0","draft":false,"prerelease":false}""") }));
+    using var client = new HttpClient(new FakeHandler(request =>
+    {
+        Equal("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/releases.win.json",
+            request.RequestUri!.AbsoluteUri);
+        True(request.Headers.Authorization is null);
+        return new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """{"Assets":[{"PackageId":"AiUsageTrayDesktop","Version":"99.0.0","Type":"Full","FileName":"AiUsageTrayDesktop-99.0.0-full.nupkg","SHA1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","SHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Size":1234}]}""")
+        };
+    }));
     foreach (var language in new[] { DisplayLanguage.Japanese, DisplayLanguage.English })
     {
         var locale = new UiLocalizer(language);
@@ -589,6 +606,68 @@ AsyncTest("update network failure is explicit and not up-to-date", async () =>
     try { await UpdateFlow.PortableCheckAsync(client, default); }
     catch (HttpRequestException) { return; }
     throw new InvalidOperationException("Expected explicit update failure");
+});
+AsyncTest("update checks detect GitHub API-style rate limit headers without calling the API", async () =>
+{
+    using var client = new HttpClient(new FakeHandler(_ =>
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.Forbidden);
+        response.Headers.TryAddWithoutValidation("X-RateLimit-Remaining", "0");
+        response.Headers.TryAddWithoutValidation("X-RateLimit-Reset", "1893456000");
+        return response;
+    }));
+    try { await UpdateFlow.PortableCheckAsync(client, default); }
+    catch (UsageException ex) when (ex.Kind == FailureKind.RateLimited &&
+        ex.SafeCode == "update_rate_limited" && ex.RetryAfter is not null)
+    { return; }
+    throw new InvalidOperationException("Expected explicit rate-limit failure");
+});
+AsyncTest("static release manifest follows only trusted redirects", async () =>
+{
+    var requests = new List<string>();
+    using var client = new HttpClient(new FakeHandler(request =>
+    {
+        requests.Add(request.RequestUri!.AbsoluteUri);
+        if (requests.Count == 1)
+            return new(HttpStatusCode.Redirect)
+            {
+                Headers =
+                {
+                    Location = new Uri("https://github.com/aktsmm/agent-usage-monitor/releases/download/v99.0.0/releases.win.json")
+                }
+            };
+        if (requests.Count == 2)
+            return new(HttpStatusCode.Redirect)
+            {
+                Headers =
+                {
+                    Location = new Uri("https://release-assets.githubusercontent.com/synthetic?signature=ok")
+                }
+            };
+        return new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """{"Assets":[{"PackageId":"AiUsageTrayDesktop","Version":"99.0.0","Type":"Full","FileName":"AiUsageTrayDesktop-99.0.0-full.nupkg","SHA1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","SHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Size":1234}]}""")
+        };
+    }));
+    var latest = await UpdateFlow.LatestVersionAsync(client, default);
+    Equal("99.0.0", latest!.ToString());
+    Equal("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/releases.win.json", requests[0]);
+    Equal("https://github.com/aktsmm/agent-usage-monitor/releases/download/v99.0.0/releases.win.json", requests[1]);
+    Equal("https://release-assets.githubusercontent.com/synthetic?signature=ok", requests[2]);
+});
+AsyncTest("static release manifest rejects an untrusted redirect", async () =>
+{
+    using var client = new HttpClient(new FakeHandler(_ =>
+        new(HttpStatusCode.Redirect)
+        {
+            Headers = { Location = new Uri("https://example.com/releases.win.json") }
+        }));
+    try { await UpdateFlow.LatestVersionAsync(client, default); }
+    catch (UsageException ex) when (ex.Kind == FailureKind.Forbidden &&
+        ex.SafeCode == "update_redirect_not_allowed")
+    { return; }
+    throw new InvalidOperationException("Expected untrusted update redirect rejection");
 });
 Test("public demo contains synthetic accounts and no saved credentials", () =>
 {
@@ -829,14 +908,60 @@ Test("update manifest binds package, stable version, size and SHA256", () =>
     if (!Velopack.SemanticVersion.TryParse("0.1.2", out var latest) || latest is null ||
         !Velopack.SemanticVersion.TryParse("0.1.1", out var current) || current is null)
         throw new InvalidOperationException("Expected stable semantic versions");
-    var asset = new Velopack.VelopackAsset { PackageId = "AiUsageTrayDesktop",
-        Version = latest, FileName = "AiUsageTrayDesktop-0.1.2-full.nupkg",
-        Size = 1024, SHA256 = new string('a', 64) };
+    var asset = new Velopack.VelopackAsset
+    {
+        PackageId = "AiUsageTrayDesktop",
+        Version = latest,
+        Type = Velopack.VelopackAssetType.Full,
+        FileName = "AiUsageTrayDesktop-0.1.2-full.nupkg",
+        Size = 1024,
+        SHA1 = new string('b', 40),
+        SHA256 = new string('a', 64)
+    };
     UpdateFlow.ValidateAsset(asset, latest, current);
-    foreach (var invalid in new[] {
-        new Velopack.VelopackAsset { PackageId = "Foreign", Version = asset.Version, FileName = asset.FileName, Size = 1024, SHA256 = asset.SHA256 },
-        new Velopack.VelopackAsset { PackageId = asset.PackageId, Version = asset.Version, FileName = "..\\foreign.nupkg", Size = 1024, SHA256 = asset.SHA256 },
-        new Velopack.VelopackAsset { PackageId = asset.PackageId, Version = asset.Version, FileName = asset.FileName, Size = 1024, SHA256 = "" } })
+    bool mismatchRejected = false;
+    try
+    {
+        UpdateFlow.ValidateAsset(new Velopack.VelopackAsset
+        {
+            PackageId = asset.PackageId,
+            Version = asset.Version,
+            Type = asset.Type,
+            FileName = asset.FileName,
+            Size = asset.Size + 1,
+            SHA1 = asset.SHA1,
+            SHA256 = asset.SHA256
+        }, asset, current);
+    }
+    catch (UsageException ex) when (ex.Kind == FailureKind.Forbidden) { mismatchRejected = true; }
+    True(mismatchRejected);
+    foreach (var invalid in new[]
+    {
+        new Velopack.VelopackAsset
+        {
+            PackageId = "Foreign",
+            Version = asset.Version,
+            FileName = asset.FileName,
+            Size = 1024,
+            SHA256 = asset.SHA256
+        },
+        new Velopack.VelopackAsset
+        {
+            PackageId = asset.PackageId,
+            Version = asset.Version,
+            FileName = "..\\foreign.nupkg",
+            Size = 1024,
+            SHA256 = asset.SHA256
+        },
+        new Velopack.VelopackAsset
+        {
+            PackageId = asset.PackageId,
+            Version = asset.Version,
+            FileName = asset.FileName,
+            Size = 1024,
+            SHA256 = ""
+        }
+    })
     {
         try { UpdateFlow.ValidateAsset(invalid, latest, current); }
         catch (UsageException ex) when (ex.Kind == FailureKind.Forbidden) { continue; }
@@ -846,23 +971,31 @@ Test("update manifest binds package, stable version, size and SHA256", () =>
     catch (UsageException ex) when (ex.Kind == FailureKind.Forbidden) { return; }
     throw new InvalidOperationException("Expected no same-version reapply");
 });
-AsyncTest("draft, prerelease and malformed update versions are never auto-applied", async () =>
+AsyncTest("malformed release manifests and unstable versions are rejected", async () =>
 {
-    foreach (var json in new[] { """{"tag_name":"v0.1.2","draft":true,"prerelease":false}""",
-        """{"tag_name":"v0.1.2-beta","draft":false,"prerelease":true}""",
-        """{"tag_name":"garbage","draft":false,"prerelease":false}""" })
+    foreach (var json in new[]
+    {
+        """{"Assets":{}}""",
+        """{"Assets":[{"PackageId":"AiUsageTrayDesktop","Version":"99.0.0-beta","Type":"Full","FileName":"AiUsageTrayDesktop-99.0.0-full.nupkg","SHA1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","SHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Size":1234}]}""",
+        """{"Assets":[{"PackageId":"AiUsageTrayDesktop","Version":"99.0.0","Type":"Full","FileName":"..\\foreign.nupkg","SHA1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","SHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Size":1234}]}""",
+        """{"Assets":[{"PackageId":"AiUsageTrayDesktop","Version":"99.0.0","Type":"Full","FileName":"AiUsageTrayDesktop-99.0.0-full.nupkg","SHA1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","SHA256":"short","Size":1234}]}""",
+        """{"Assets":[{"PackageId":"AiUsageTrayDesktop","Version":"99.0.0","Type":"Full","FileName":"AiUsageTrayDesktop-99.0.0-full.nupkg","SHA1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","SHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Size":1234},{"PackageId":"AiUsageTrayDesktop","Version":"99.0.0","Type":"Full","FileName":"AiUsageTrayDesktop-99.0.0-full.nupkg","SHA1":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","SHA256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","Size":1234}]}"""
+    })
     {
         using var client = new HttpClient(new FakeHandler(_ => new(HttpStatusCode.OK) { Content = new StringContent(json) }));
         try { await UpdateFlow.LatestVersionAsync(client, default); }
-        catch (UsageException ex) when (ex.Kind == FailureKind.Schema) { continue; }
+        catch (UsageException ex) when (ex.Kind is FailureKind.Schema or FailureKind.Forbidden) { continue; }
         throw new InvalidOperationException("Expected rejected update metadata");
     }
 });
 Test("update downloader restricts repository and redirects without accepting foreign sources", () =>
 {
-    True(UpdateDownloader.TrustedSource(new("https://api.github.com/repos/aktsmm/agent-usage-monitor/releases?per_page=10")));
     True(UpdateDownloader.TrustedSource(new("https://github.com/aktsmm/agent-usage-monitor/releases/download/v0.1.2/releases.win.json")));
+    True(UpdateDownloader.TrustedSource(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES")));
+    True(UpdateDownloader.TrustedSource(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES?packageId=AiUsageTrayDesktop")));
     True(UpdateDownloader.TrustedSource(new("https://release-assets.githubusercontent.com/example?signature=synthetic"), true));
+    True(UpdateDownloader.TrustedSource(new("https://github.com/aktsmm/agent-usage-monitor/releases/download/v0.1.2/RELEASES?packageId=AiUsageTrayDesktop"), true));
+    True(!UpdateDownloader.TrustedSource(new("https://api.github.com/repos/aktsmm/agent-usage-monitor/releases")));
     True(!UpdateDownloader.TrustedSource(new("https://api.github.com/repos/foreign/app/releases")));
     True(!UpdateDownloader.TrustedSource(new("https://example.com/package.nupkg"), true));
     True(!UpdateDownloader.TrustedSource(new("http://release-assets.githubusercontent.com/example"), true));

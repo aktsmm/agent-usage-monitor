@@ -24,6 +24,16 @@ public sealed class UpdateDownloader : IFileDownloader
         return memory.ToArray();
     }
 
+    public static async Task<byte[]> DownloadBytesAsync(HttpClient client, string url,
+        CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !TrustedSource(uri))
+            throw new UsageException(FailureKind.Forbidden, "update_source_not_allowed");
+        using var memory = new MemoryStream();
+        await DownloadAsync(client, uri, memory, null, 1_048_576, cancellationToken);
+        return memory.ToArray();
+    }
+
     public async Task DownloadFile(string url, string targetFile, Action<int>? progress = null,
         IDictionary<string, string>? headers = null, double timeout = 30, CancellationToken cancellationToken = default)
     {
@@ -35,10 +45,10 @@ public sealed class UpdateDownloader : IFileDownloader
     public static bool TrustedSource(Uri uri, bool redirect = false)
     {
         if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length > 0) return false;
-        if (redirect) return uri.Host is "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
-        return UpdateFlow.TrustedDownload(uri) || uri.Host == "api.github.com" &&
-            (uri.AbsolutePath == "/repos/aktsmm/agent-usage-monitor/releases" ||
-             uri.AbsolutePath.StartsWith("/repos/aktsmm/agent-usage-monitor/releases/", StringComparison.Ordinal));
+        if (redirect)
+            return UpdateFlow.TrustedReleaseRedirect(uri) ||
+                uri.Host is "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
+        return UpdateFlow.TrustedDownload(uri);
     }
 
     private static async Task DownloadAsync(string url, Stream output, IDictionary<string, string>? headers,
@@ -52,6 +62,12 @@ public sealed class UpdateDownloader : IFileDownloader
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout);
         using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = timeout };
+        await DownloadAsync(client, uri, output, headers, maximumBytes, deadline.Token);
+    }
+
+    private static async Task DownloadAsync(HttpClient client, Uri uri, Stream output,
+        IDictionary<string, string>? headers, long maximumBytes, CancellationToken cancellationToken)
+    {
         for (int redirects = 0; redirects <= 3; redirects++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -60,31 +76,34 @@ public sealed class UpdateDownloader : IFileDownloader
                 foreach (var entry in headers)
                     if (entry.Key.Equals("Accept", StringComparison.OrdinalIgnoreCase))
                         request.Headers.TryAddWithoutValidation(entry.Key, entry.Value);
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (response.StatusCode is HttpStatusCode.Moved or HttpStatusCode.Redirect or
                 HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect)
             {
                 var location = response.Headers.Location;
-                if (location is null || !location.IsAbsoluteUri || !TrustedSource(location, redirect: true))
+                if (location is null || !Uri.TryCreate(uri, location, out var redirectUri) ||
+                    !TrustedSource(redirectUri, redirect: true))
                     throw new UsageException(FailureKind.Forbidden, "update_redirect_not_allowed");
-                uri = location;
+                uri = redirectUri;
                 continue;
             }
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            if (UpdateFlow.IsRateLimited(response))
                 throw new UsageException(FailureKind.RateLimited, "update_rate_limited",
-                    response.Headers.RetryAfter?.Delta ?? response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow);
+                    UpdateFlow.RateLimitRetryAfter(response));
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                throw new HttpRequestException("Update resource was not found", null, response.StatusCode);
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength > maximumBytes)
                 throw new UsageException(FailureKind.Schema, "update_content_too_large");
-            await using var input = await response.Content.ReadAsStreamAsync(deadline.Token);
+            await using var input = await response.Content.ReadAsStreamAsync(cancellationToken);
             var buffer = new byte[81920];
             long bytes = 0;
             int count;
-            while ((count = await input.ReadAsync(buffer, deadline.Token)) > 0)
+            while ((count = await input.ReadAsync(buffer, cancellationToken)) > 0)
             {
                 bytes += count;
                 if (bytes > maximumBytes) throw new UsageException(FailureKind.Schema, "update_content_too_large");
-                await output.WriteAsync(buffer.AsMemory(0, count), deadline.Token);
+                await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
             }
             return;
         }
