@@ -570,6 +570,11 @@ Test("update asset trust remains pinned to one repository", () =>
     True(UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES?packageId=AiUsageTrayDesktop")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES?packageId=Foreign")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES?packageId=AiUsageTrayDesktop&extra=1")));
+    True(UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/releases.win.json?arch=x64&os=win&rid=win-x64&id=AiUsageTrayDesktop&localVersion=0.2.5")));
+    True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/releases.win.json?id=Foreign")));
+    True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/releases.win.json?id=AiUsageTrayDesktop&id=AiUsageTrayDesktop")));
+    True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/releases.win.json?localVersion=0.2.5&token=x")));
+    True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/AiUsageTrayDesktop-0.2.6-full.nupkg?id=AiUsageTrayDesktop")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/ai-usage-monitor/releases/download/v0.1.0/releases.win.json")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/another/app/releases/download/v0.1.0/Setup.exe")));
     True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/ai-usage-tray/releases/download/v0.1.0/releases.win.json")));
@@ -578,6 +583,20 @@ Test("update asset trust remains pinned to one repository", () =>
     True(!UpdateFlow.TrustedDownload(new("https://github.com/aktsmm/agent-usage-monitor/releases/download/v0.1.0/Setup.exe?redirect=bad")));
     True(UpdateFlow.TrustedReleaseRedirect(new("https://github.com/aktsmm/agent-usage-monitor/releases/download/v0.2.4/releases.win.json")));
     True(!UpdateFlow.TrustedReleaseRedirect(new("https://github.com/aktsmm/agent-usage-monitor/releases/latest/download/RELEASES")));
+});
+AsyncTest("update feed request built by Velopack is accepted by the trusted-source rule", async () =>
+{
+    var requested = new List<string>();
+    var capture = new CapturingDownloader(requested);
+    var source = new Velopack.Sources.SimpleWebSource(UpdateFlow.ReleaseDownloadBase, capture);
+    var local = new Velopack.VelopackAsset
+    {
+        PackageId = "AiUsageTrayDesktop", Version = Velopack.SemanticVersion.Parse("0.2.5"),
+        Type = Velopack.VelopackAssetType.Full, FileName = "AiUsageTrayDesktop-0.2.5-full.nupkg"
+    };
+    await source.GetReleaseFeed(Velopack.Logging.NullVelopackLogger.Instance, "AiUsageTrayDesktop", "win", null, local);
+    True(requested.Count > 0);
+    foreach (var url in requested) True(UpdateFlow.TrustedDownload(new(url)));
 });
 AsyncTest("portable update check handles absent public release without claiming latest", async () =>
 {
@@ -1223,4 +1242,26 @@ sealed class FakeHandler(Func<HttpRequestMessage, HttpResponseMessage> response)
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         => Task.FromResult(response(request));
+}
+
+sealed class CapturingDownloader(List<string> requested) : Velopack.Sources.IFileDownloader
+{
+    public Task<string> DownloadString(string url, IDictionary<string, string>? headers = null, double timeout = 30)
+    {
+        requested.Add(url);
+        return Task.FromResult("{\"Assets\":[]}");
+    }
+
+    public Task<byte[]> DownloadBytes(string url, IDictionary<string, string>? headers = null, double timeout = 30)
+    {
+        requested.Add(url);
+        return Task.FromResult(Array.Empty<byte>());
+    }
+
+    public Task DownloadFile(string url, string targetFile, Action<int>? progress = null,
+        IDictionary<string, string>? headers = null, double timeout = 30, CancellationToken cancelToken = default)
+    {
+        requested.Add(url);
+        return Task.CompletedTask;
+    }
 }

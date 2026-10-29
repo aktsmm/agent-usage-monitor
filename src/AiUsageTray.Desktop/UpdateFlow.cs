@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -39,9 +40,34 @@ public static class UpdateFlow
         uri.AbsolutePath.StartsWith("/aktsmm/agent-usage-monitor/releases/download/", StringComparison.Ordinal) &&
         TrustedReleaseQuery(uri) && uri.Fragment.Length == 0 && !uri.AbsolutePath.Contains("%", StringComparison.Ordinal);
 
-    private static bool TrustedReleaseQuery(Uri uri) => uri.Query.Length == 0 ||
-        uri.AbsolutePath.EndsWith("/RELEASES", StringComparison.Ordinal) &&
-        uri.Query == "?packageId=AiUsageTrayDesktop";
+    private static readonly Dictionary<string, Regex> ReleaseQueryParameters = new(StringComparer.Ordinal)
+    {
+        ["packageId"] = new("^AiUsageTrayDesktop$", RegexOptions.CultureInvariant),
+        ["id"] = new("^AiUsageTrayDesktop$", RegexOptions.CultureInvariant),
+        ["arch"] = new("^(x64|x86|arm64)$", RegexOptions.CultureInvariant),
+        ["os"] = new("^win$", RegexOptions.CultureInvariant),
+        ["rid"] = new("^win-(x64|x86|arm64)$", RegexOptions.CultureInvariant),
+        ["localVersion"] = new(@"^\d{1,5}\.\d{1,5}\.\d{1,5}$", RegexOptions.CultureInvariant)
+    };
+
+    // Velopack appends metadata such as ?arch=x64&os=win&rid=win-x64&id=...&localVersion=... when it reads the feed.
+    // Only the feed files accept a query, and only these exact keys with strictly shaped values, each at most once.
+    private static bool TrustedReleaseQuery(Uri uri)
+    {
+        if (uri.Query.Length == 0) return true;
+        if (!uri.AbsolutePath.EndsWith("/RELEASES", StringComparison.Ordinal) &&
+            !uri.AbsolutePath.EndsWith("/releases.win.json", StringComparison.Ordinal))
+            return false;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var pair in uri.Query[1..].Split('&'))
+        {
+            var parts = pair.Split('=');
+            if (parts.Length != 2 || !ReleaseQueryParameters.TryGetValue(parts[0], out var shape) ||
+                !shape.IsMatch(parts[1]) || !seen.Add(parts[0]))
+                return false;
+        }
+        return true;
+    }
 
     public static bool IsRateLimited(HttpResponseMessage response) =>
         response.StatusCode == HttpStatusCode.TooManyRequests ||
@@ -232,7 +258,7 @@ public static class UpdateFlow
             TimeoutException or OperationCanceledException or Velopack.Exceptions.ChecksumFailedException or
             Velopack.Exceptions.AcquireLockFailedException or Velopack.Exceptions.NotInstalledException)
         {
-            var message = locale.Format(UiText.UpdateFailed, ex.GetType().Name) + "\n" + ReleasePage;
+            var message = locale.Format(UiText.UpdateFailed, ex is UsageException coded ? coded.SafeCode : ex.GetType().Name) + "\n" + ReleasePage;
             try
             {
                 await ReportAsync(UpdateStage.Failed, ex is UsageException failure ? failure.SafeCode : ex.GetType().Name,
