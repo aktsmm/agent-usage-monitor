@@ -15,6 +15,7 @@ WSL、独自クラウドバックエンドを必要としません。
 ## できること
 
 - サービス/アカウント/枠を合算せず、使用率・残量・取得時刻・resetを表示。
+- 同じサービスの複数アカウントを個別に監視。別名と表示先を設定でき、使用量は合算しません。
 - Copilot月枠÷実際の日数を日目安、日×7を週目安に固定配分。
 - Codex/Claudeの週間枠が得られる場合は枠÷7を日目安にする。
 - 使用率の刻み、80/90/95%等のしきい値、日/週目安超過、確認済みresetを通知。
@@ -25,6 +26,8 @@ WSL、独自クラウドバックエンドを必要としません。
 - 履歴保存先の選択、月別ローテーション、検証付きZIP、保存フォルダー/ファイルを開く導線。
 - タスクバー上の軽量native小型表示。Copilot月間、Codex/Claude週間の契約使用率を表示。
 - インストーラー版のアプリ内更新確認、ポータブル版の公式Release案内。
+
+複数アカウントの設定方法とサービスごとの制限は[マルチアカウント運用](docs/multi-account.md)を参照してください。
 
 ## 使い始める
 
@@ -127,7 +130,7 @@ plan名から分母・token・creditsを推定しません。
 
 | サービス | 認証と取得 | 制限 |
 | --- | --- | --- |
-| Copilot | `gh auth status --active --hostname github.com --json hosts`の選択1件だけ。同じtokenで`/user`のloginとIDを照合・固定しUsage-only GET | `copilot_internal/user`は非公開API。ghがなくCopilot CLIだけの場合、正確な選択credentialのWindowsターゲットを文書から確定できないので自動接続未対応。詳細設定の指定1件は保持 |
+| Copilot | `gh`ログインの選択1件。同じtokenで`/user`のloginとIDを照合・固定しUsage-only GET | `copilot_internal/user`は非公開API。GitHub Copilotデスクトップアプリ単独の認証は未対応 |
 | Codex | `CODEX_HOME`または既定`~\.codex`の`auth.json`。ChatGPTのメールmetadataと選択account_idを固定しUsage-only GET | `wham/usage`は非公開API。`keyring/auto/ephemeral`等の別認証元は自動接続未対応。公式`account/read`はaccount_idを返さないためメールだけで代用しない |
 | Claude Code | CLIの存在・version・公式`claude auth status`を確認し、本人準備のstatusline scalar snapshotを利用 | 未ログインは「ログインが必要」。snapshotを現在account/configへ確実に結び付けられないため自動有効化しない。独自OAuth・Cookie・推論なし |
 
@@ -136,6 +139,12 @@ GitHubログイン/ID・Codexメール/account_idが一致しなければ止め�
 VS Code secret storage、browser Cookie、独自login/token保存/refresh、ダミー推論はありません。
 JWTのdecodeはローカル選択metadataを読む処理であり、署名検証ではありません。
 providerの契約、企業SSO/ポリシー、各サービスの規約を確認してください。
+
+Copilotの追加候補は「アカウントを追加」画面で明示的に検出・選択します。GitHub CLI候補は重複をまとめ、
+状態が`success`のログインだけを表示します。
+GitHub Copilotデスクトップアプリの認証は現在連携していません。直接の認証情報・秘密ストア走査も行いません。
+Codexの追加`CODEX_HOME`とClaude Codeの追加`CLAUDE_CONFIG_DIR`/snapshotは一覧を自動取得できないため、
+引き続き本人がパスとアカウントを指定してください。
 
 Codexの限定fallbackを有効化すると、公式 `codex app-server` で
 `initialize / initialized / account/read(refreshToken:false) / account/rateLimits/read` のみ実行します。

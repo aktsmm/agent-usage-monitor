@@ -25,7 +25,8 @@ static class AccountTests
         });
         test("account aliases win, collisions get stable suffixes, control characters are rejected", () =>
         {
-            var s = baseSettings.AddAccount(Extra("x1", "alice-work")).AddAccount(Extra("x2", "carol"))
+            var s = baseSettings.AddAccount(Extra("x1", "carol")).AddAccount(Extra("x2", "dave"))
+                .WithPreference("x1", new() { Alias = "alice-work" })
                 .WithPreference("x2", new() { Alias = "  Personal " });
             var names = s.Accounts().Select(e => e.Name).ToArray();
             Check(names.SequenceEqual(["alice-work #1", "alice-work #2", "Personal"]), string.Join("|", names));
@@ -70,6 +71,76 @@ static class AccountTests
             }
             Check(s.RemoveAccount("x1").ExtraAccounts.Count == 0, "remove");
         });
+        test("Copilot profiles deduplicate by verified GitHub user id across CLI and VS Code", () =>
+        {
+            const string userId = "123456";
+            var userKey = AccountKey.FromIdentity(Provider.Copilot, "github.com:" + userId).Id;
+            var cli = new AccountProfile
+            {
+                Id = "cli",
+                Provider = Provider.Copilot,
+                Login = "old-login",
+                PinnedAccount = userKey
+            };
+            var vscode = new AccountProfile
+            {
+                Id = "vscode",
+                Provider = Provider.Copilot,
+                Login = "new-login",
+                VscodeUserId = userId
+            };
+            Check(cli.IsSameAccountAs(vscode), "same numeric GitHub id");
+            Check(!cli.IsSameAccountAs(vscode with { VscodeUserId = "654321" }), "different numeric GitHub id");
+            Check(!cli.IsSameAccountAs(vscode with { Login = cli.Login, VscodeUserId = "654321" }),
+                "verified ids take precedence over a stale/reused login");
+            var invalid = false;
+            try
+            {
+                (vscode with
+                {
+                    PinnedAccount = AccountKey.FromIdentity(Provider.Copilot, "github.com:654321").Id
+                }).Validate();
+            }
+            catch (UsageException) { invalid = true; }
+            Check(invalid, "VS Code id and pinned id must agree");
+
+            var settings = new DesktopSettings
+            {
+                CopilotEnabled = true,
+                GithubLogin = cli.Login,
+                GithubPinnedAccount = userKey
+            };
+            var rejected = false;
+            try { settings.AddAccount(vscode); } catch (UsageException) { rejected = true; }
+            Check(rejected, "CLI primary and VS Code profile");
+
+            var vscodeSettings = new DesktopSettings { ExtraAccounts = [vscode] };
+            rejected = false;
+            try { vscodeSettings.AddAccount(cli with { Id = "another-cli-profile" }); }
+            catch (UsageException) { rejected = true; }
+            Check(rejected, "VS Code and CLI profiles");
+
+            var duplicateSettings = new DesktopSettings
+            {
+                CopilotEnabled = true,
+                GithubLogin = cli.Login,
+                GithubPinnedAccount = userKey,
+                ExtraAccounts = [vscode with { PinnedAccount = userKey }]
+            }.WithPreference("vscode", new() { ShowInStrip = true });
+            var values = UsageStrip.ValuesByAccount(duplicateSettings.Accounts(),
+                [Snap(Provider.Copilot, "github.com:" + userId, 42)], now, TimeSpan.FromMinutes(10));
+            Check(values.Count == 1 && values[0].Percentage == 42, "same account renders once in strip");
+
+            var tampered = new DesktopSettings
+            {
+                CopilotEnabled = true,
+                GithubLogin = "alice-work",
+                ExtraAccounts = [Extra("x1", "alice-work")]
+            };
+            rejected = false;
+            try { tampered.Validate(); } catch (UsageException) { rejected = true; }
+            Check(rejected, "a hand-edited settings file cannot hold the same account twice");
+        });
         test("account strip shows two accounts of one service side by side and never sums them", () =>
         {
             var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { ShowInStrip = true });
@@ -87,6 +158,11 @@ static class AccountTests
         {
             var one = UsageStripPresentation.Create(baseSettings, [Snap(Provider.Copilot, "alice-work", 40)], now, TimeSpan.FromMinutes(10));
             Check(one.Text == "Copilot 40%", one.Text);
+            var hiddenPrimary = baseSettings.WithPreference(AccountNames.PrimaryId(Provider.Copilot),
+                new() { Visible = true, ShowInStrip = false });
+            var hidden = UsageStripPresentation.Create(hiddenPrimary, [Snap(Provider.Copilot, "alice-work", 40)],
+                now, TimeSpan.FromMinutes(10));
+            Check(!hidden.Text.Contains("40%"), "primary strip opt-out is honored");
             var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { Alias = "Home", ShowInStrip = true });
             var two = UsageStripPresentation.Create(s, [Snap(Provider.Copilot, "alice-work", 40), Snap(Provider.Copilot, "carol", 70)],
                 now, TimeSpan.FromMinutes(10));

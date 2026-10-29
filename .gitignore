@@ -1,5 +1,7 @@
 **/bin/
 **/obj/
+integrations/vscode/node_modules/
+integrations/vscode/out/
 .vs/
 *.user
 local/

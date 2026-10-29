@@ -12,7 +12,9 @@ if (args.Contains("--child-hang"))
 }
 if (args.Contains("--child-env"))
 {
-    Console.WriteLine(Environment.GetEnvironmentVariable("TYPESAFE_API_KEY") is null ? "absent" : "present");
+    var secretNames = new[] { "TYPESAFE_API_KEY", "GH_TOKEN", "GITHUB_TOKEN",
+        "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN" };
+    Console.WriteLine(secretNames.All(name => Environment.GetEnvironmentVariable(name) is null) ? "absent" : "present");
     return 0;
 }
 if (args.Contains("--child-immediate"))
@@ -416,16 +418,31 @@ AsyncTest("hung child process is cancelled and closed", async () =>
     catch (OperationCanceledException) when (timeout.IsCancellationRequested) { return; }
     throw new InvalidOperationException("Expected bounded cancellation");
 });
-AsyncTest("unrelated API key is not inherited by helpers", async () =>
+AsyncTest("unrelated API and GitHub tokens are not inherited by helpers", async () =>
 {
     var previous = Environment.GetEnvironmentVariable("TYPESAFE_API_KEY");
+    var previousGithub = Environment.GetEnvironmentVariable("GH_TOKEN");
+    var previousGithubLegacy = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+    var previousEnterprise = Environment.GetEnvironmentVariable("GH_ENTERPRISE_TOKEN");
+    var previousEnterpriseLegacy = Environment.GetEnvironmentVariable("GITHUB_ENTERPRISE_TOKEN");
     Environment.SetEnvironmentVariable("TYPESAFE_API_KEY", "synthetic-not-a-secret");
+    Environment.SetEnvironmentVariable("GH_TOKEN", "synthetic-github-token");
+    Environment.SetEnvironmentVariable("GITHUB_TOKEN", "synthetic-github-token");
+    Environment.SetEnvironmentVariable("GH_ENTERPRISE_TOKEN", "synthetic-enterprise-token");
+    Environment.SetEnvironmentVariable("GITHUB_ENTERPRISE_TOKEN", "synthetic-enterprise-token");
     try
     {
         var text = await ReadOnlyProcess.CaptureAsync(Environment.ProcessPath!, ["--child-env"], default);
         Equal("absent", text.Trim());
     }
-    finally { Environment.SetEnvironmentVariable("TYPESAFE_API_KEY", previous); }
+    finally
+    {
+        Environment.SetEnvironmentVariable("TYPESAFE_API_KEY", previous);
+        Environment.SetEnvironmentVariable("GH_TOKEN", previousGithub);
+        Environment.SetEnvironmentVariable("GITHUB_TOKEN", previousGithubLegacy);
+        Environment.SetEnvironmentVariable("GH_ENTERPRISE_TOKEN", previousEnterprise);
+        Environment.SetEnvironmentVariable("GITHUB_ENTERPRISE_TOKEN", previousEnterpriseLegacy);
+    }
 });
 AsyncTest("already exited and exiting children close without a cleanup race", async () =>
 {
@@ -731,6 +748,104 @@ Test("GitHub status uses one active account and rejects ambiguity", () =>
         catch (UsageException ex) when (ex.Kind == FailureKind.AccountMismatch) { continue; }
         throw new InvalidOperationException("Expected ambiguous active selection");
     }
+});
+Test("GitHub account discovery returns usable unique logins with active first", () =>
+{
+    var candidates = OfficialCli.GithubLoginCandidates(Json("""
+        {"hosts":{"github.com":[
+        {"active":false,"state":"success","login":"other-user"},
+        {"active":true,"state":"success","login":"active-user"},
+        {"active":false,"state":"success","login":"ACTIVE-USER"},
+        {"active":false,"state":"error","login":"expired-user"},
+        {"active":false,"state":"success","login":"unusable-user"},
+        {"active":false,"state":"error","login":"UNUSABLE-USER"}]}}
+        """));
+    Equal(2, candidates.Count);
+    Equal("active-user", candidates[0].Login);
+    True(candidates[0].Active);
+    Equal("other-user", candidates[1].Login);
+    True(!candidates[1].Active);
+});
+AsyncTest("GitHub account discovery reads status without requesting credentials", async () =>
+{
+    string[]? captured = null;
+    var candidates = await OfficialCli.DiscoverGithubAccountsAsync(Environment.ProcessPath!, default,
+        (_, args, _) =>
+        {
+            captured = args;
+            return Task.FromResult((0, """{"hosts":{"github.com":[{"active":true,"state":"success","login":"sample-user"}]}}"""));
+        });
+    True(captured is not null && captured.SequenceEqual(["auth", "status", "--hostname", "github.com", "--json", "hosts"]));
+    Equal("sample-user", candidates.Single().Login);
+});
+AsyncTest("VS Code bridge discovers fresh accounts and reads quota-only snapshots", async () =>
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"ai-usage-vscode-bridge-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var observedAt = DateTimeOffset.UtcNow;
+        await File.WriteAllTextAsync(Path.Combine(directory, "accounts.json"), JsonSerializer.Serialize(new
+        {
+            version = 1,
+            accounts = new[] { new { login = "sample-user", userId = "42", label = "VS Code account",
+                observedAt = observedAt.ToString("O") } }
+        }));
+        await File.WriteAllTextAsync(Path.Combine(directory, "42.json"), JsonSerializer.Serialize(new
+        {
+            version = 1,
+            login = "sample-user",
+            userId = "42",
+            observedAt = observedAt.ToString("O"),
+            usage = new { quota_reset_date = "2026-11-01",
+                quota_snapshots = new { premium = new { percent_remaining = 64 } } }
+        }));
+        var candidates = await VscodeCopilotBridge.DiscoverAccountsAsync(directory);
+        Equal("sample-user", candidates.Single().Login);
+        var provider = new VscodeCopilotProvider("sample-user", "42",
+            AccountKey.FromIdentity(Provider.Copilot, "github.com:42").Id, directory);
+        var result = await provider.FetchAsync(default);
+        True(result.Succeeded);
+        Equal(36m, result.Snapshots.Single().Used);
+        var mismatch = new VscodeCopilotProvider("other-user", "42", snapshotDirectory: directory)
+            .FetchAsync(default);
+        var failed = await mismatch;
+        True(failed.Failures.Any(failure => failure.Kind == FailureKind.AccountMismatch));
+
+        await File.WriteAllTextAsync(Path.Combine(directory, "accounts.json"), JsonSerializer.Serialize(new
+        {
+            version = 1,
+            accounts = new[] { new { login = "stale-user", userId = "43", label = "stale",
+                observedAt = observedAt.AddHours(-1).ToString("O") } }
+        }));
+        Equal(0, (await VscodeCopilotBridge.DiscoverAccountsAsync(directory)).Count);
+    }
+    finally { Directory.Delete(directory, true); }
+});
+AsyncTest("Copilot reads a non-active gh account by explicit login and validates API identity", async () =>
+{
+    var commands = new List<string[]>();
+    var status = """{"hosts":{"github.com":[{"active":true,"state":"success","login":"active-user"},{"active":false,"state":"success","login":"inactive-user"},{"active":true,"state":"success","login":"inactive-user"}]}}""";
+    using var http = new UsageHttp(new FakeHandler(request =>
+    {
+        Equal("synthetic-token", request.Headers.Authorization?.Parameter);
+        return new(HttpStatusCode.OK) { Content = new StringContent(
+            request.RequestUri!.AbsolutePath == "/user"
+                ? """{"id":84,"login":"inactive-user"}"""
+                : """{"quota_reset_date":"2026-11-01","quota_snapshots":{"premium":{"percent_remaining":64}}}""") };
+    }));
+    var provider = new CopilotProvider(http, "inactive-user", expectedAccount:
+        AccountKey.FromIdentity(Provider.Copilot, "github.com:84").Id, executable: Environment.ProcessPath,
+        commands: (_, args, _) =>
+        {
+            commands.Add(args);
+            return Task.FromResult((0, args[1] == "status" ? status : "synthetic-token"));
+        });
+    var result = await provider.FetchAsync(default);
+    True(result.Succeeded);
+    True(commands[0].SequenceEqual(["auth", "status", "--hostname", "github.com", "--json", "hosts"]));
+    True(commands[1].SequenceEqual(["auth", "token", "--hostname", "github.com", "--user", "inactive-user"]));
+    True(!JsonSerializer.Serialize(result).Contains("synthetic-token"));
 });
 Test("CLI resolution excludes current directory and shell shims", () =>
 {

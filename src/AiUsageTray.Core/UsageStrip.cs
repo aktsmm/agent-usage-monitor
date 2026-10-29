@@ -19,7 +19,17 @@ public static class UsageStrip
     {
         var all = entries.ToList();
         var list = snapshots.ToList();
-        return all.Where(e => e.InStrip).Select(entry =>
+        var visible = new List<AccountEntry>();
+        var seenCopilotAccounts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in all.Where(e => e.InStrip))
+        {
+            if (entry.Profile.Provider == Provider.Copilot &&
+                entry.Profile.CanonicalAccountId is { } accountId &&
+                !seenCopilotAccounts.Add(accountId))
+                continue;
+            visible.Add(entry);
+        }
+        return visible.Select(entry =>
         {
             var provider = entry.Profile.Provider;
             var window = provider == Provider.Copilot ? WindowKind.Monthly : WindowKind.Weekly;

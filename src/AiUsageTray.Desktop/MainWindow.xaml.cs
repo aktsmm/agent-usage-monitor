@@ -33,20 +33,41 @@ public partial class MainWindow : Window
         {
             var content = new StackPanel();
             var failure = app.LastFailures.GetValueOrDefault(provider);
+            var accounts = app.Settings.Accounts().Where(a => a.Profile.Provider == provider &&
+                a.Profile.Enabled && a.Preference.Visible).ToArray();
             var snapshots = failure?.Kind == FailureKind.AccountMismatch ? [] :
                 app.State.Latest.Where(s => s.Key.Account.Provider == provider).ToArray();
+            if (accounts.Length == 0) snapshots = [];
+            else if (accounts.Length > 1)
+            {
+                var ids = accounts.Select(a => a.Profile.ExpectedAccount).Where(id => id is not null)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                snapshots = snapshots.Where(s => ids.Contains(s.Key.Account.Id)).ToArray();
+            }
             if (snapshots.Any(s => !s.Unlimited))
                 snapshots = snapshots.Where(s => !s.Unlimited).ToArray();
             content.Children.Add(Label(ConnectionText.Name(provider), 16, true));
-            var identity = provider switch { Provider.Copilot => app.Settings.GithubLogin,
-                Provider.Codex => app.Settings.CodexEmail, _ => app.Settings.ClaudeAccountLabel };
-            if (!string.IsNullOrWhiteSpace(identity)) content.Children.Add(Label(identity, 11));
+            if (accounts.Length == 1)
+            {
+                var identity = accounts[0].Profile.Identity;
+                if (!string.IsNullOrWhiteSpace(identity)) content.Children.Add(Label(identity, 11));
+            }
             if (snapshots.Length == 0)
             {
                 content.Children.Add(Label(ConnectionText.Summary(app.Settings, provider, failure, app.Discovering, locale), 12));
             }
-            foreach (var snapshot in snapshots)
+            var accountGroups = snapshots.GroupBy(s => s.Key.Account.Id).ToArray();
+            foreach (var accountGroup in accountGroups)
             {
+                if (accounts.Length > 1)
+                {
+                    var account = accounts.FirstOrDefault(a => string.Equals(a.Profile.ExpectedAccount,
+                        accountGroup.Key, StringComparison.OrdinalIgnoreCase));
+                    content.Children.Add(Label(account?.Name ?? accountGroup.Key[..Math.Min(8, accountGroup.Key.Length)],
+                        13, true));
+                }
+                foreach (var snapshot in accountGroup)
+                {
                 bool stale = !snapshot.IsFresh(DateTimeOffset.UtcNow, app.State.Polling.MaximumAge);
                 content.Children.Add(Label(locale.Text(snapshot.Window.Kind switch { WindowKind.Short => UiText.ShortQuota,
                     WindowKind.Weekly => UiText.WeeklyQuota, WindowKind.Monthly => UiText.MonthlyQuota, _ => UiText.UnknownQuotaWindow }), 12, true));
@@ -94,6 +115,7 @@ public partial class MainWindow : Window
                 if (snapshot.CreditsUsed is { } credits)
                     details.Children.Add(Label(locale.Format(UiText.CreditsApiValue, credits), 11));
                 content.Children.Add(new Expander { Header = locale.Text(UiText.QuotaDetails), Content = details });
+                }
             }
             if (failure is not null)
                 content.Children.Add(new TextBlock { Text = ConnectionText.Failure(failure, locale), Foreground = (Brush)FindResource("WarningBrush") });

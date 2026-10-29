@@ -1,0 +1,40 @@
+AI Usage Tray
+Copyright (c) 2026 aktsmm
+
+Unless otherwise noted, the original material authored for this project is
+licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+International (CC BY-NC-SA 4.0). Covered material includes source code,
+application binaries, scripts, workflow definitions, tests and synthetic
+fixtures, documentation, and project-authored images.
+
+The unmodified standard legal code is included in:
+docs/licenses/CC-BY-NC-SA-4.0.txt
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Separate additional permission for Microsoft Corporation and its affiliates
+
+The copyright holder grants Microsoft Corporation and its affiliates
+additional permission to use, reproduce, adapt, and distribute the covered
+material for internal business purposes and commercial purposes.
+This additional permission waives only the NonCommercial restriction for
+Microsoft Corporation and its affiliates. It does not extend to unrelated
+third parties. Attribution, ShareAlike, and no-additional-restrictions
+conditions continue to apply where relevant.
+
+This separate permission does not modify the standard CC BY-NC-SA 4.0
+legal code. Other recipients retain the rights granted by the standard
+license. No separate AI-training ban or redistribution ban is imposed.
+
+Scope exclusions
+
+Third-party dependencies, runtime binaries, service data obtained from
+providers, external content, and trademarks are not licensed by aktsmm
+under this notice. Their respective licenses and owners' rights apply.
+See THIRD-PARTY-NOTICES.txt and the original notices in binary packages.
+Patent and trademark rights are not granted.
+
+This is a source-available application, not OSI-approved open-source
+software. Creative Commons generally recommends software-specific
+licenses instead of CC licenses for software. CC BY-NC-SA 4.0 has no
+software-specific source-provision requirement and does not grant patent
+rights; this choice does not imply otherwise.

@@ -76,7 +76,8 @@ public sealed record DesktopSettings
     public DesktopSettings AddAccount(AccountProfile profile)
     {
         profile.Validate();
-        if (profile.Id.StartsWith("primary-", StringComparison.Ordinal) || Profiles().Any(p => p.Id == profile.Id))
+        if (profile.Id.StartsWith("primary-", StringComparison.Ordinal) ||
+            Profiles().Any(p => p.Id == profile.Id || p.IsSameAccountAs(profile)))
             throw new UsageException(FailureKind.Schema, "account_profile_duplicate");
         return this with { ExtraAccounts = [.. ExtraAccounts, profile] };
     }
@@ -89,12 +90,15 @@ public sealed record DesktopSettings
 
     /// <summary>Connection identity of one profile; changes whenever what the connection reads changes.</summary>
     public static string SelectionId(AccountProfile p) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(
-        new[] { p.Provider.ToString(), p.Enabled.ToString(), p.Identity, p.CredentialTarget ?? "", p.Home, p.Snapshot, p.Executable, p.PinnedAccount ?? "" })));
+        new[] { p.Provider.ToString(), p.Enabled.ToString(), p.Identity, p.CredentialTarget ?? "", p.Home,
+            p.Snapshot, p.Executable, p.PinnedAccount ?? "", p.VscodeUserId ?? "" })));
 
     public static IUsageProvider? CreateProvider(AccountProfile p, UsageHttp http) => !p.Enabled ? null : p.Provider switch
     {
-        Provider.Copilot => new CopilotProvider(http, p.Login, p.CredentialTarget, p.PinnedAccount,
-            string.IsNullOrWhiteSpace(p.Executable) ? null : p.Executable),
+        Provider.Copilot => p.VscodeUserId is { } userId
+            ? new VscodeCopilotProvider(p.Login, userId, p.PinnedAccount)
+            : new CopilotProvider(http, p.Login, p.CredentialTarget, p.PinnedAccount,
+                string.IsNullOrWhiteSpace(p.Executable) ? null : p.Executable),
         Provider.Codex => new CodexProvider(http, p.Home, p.Email, p.Executable, p.CliFallback, p.PinnedAccount),
         _ => new ClaudeProvider(p.Snapshot, AccountKey.FromIdentity(Provider.Claude, p.Label))
     };
@@ -106,6 +110,11 @@ public sealed record DesktopSettings
         if (ExtraAccounts.Select(p => p.Id).Distinct().Count() != ExtraAccounts.Count ||
             ExtraAccounts.Any(p => p.Id.StartsWith("primary-", StringComparison.Ordinal)))
             throw new UsageException(FailureKind.Schema, "account_profile_duplicate");
+        var profiles = Profiles().Where(p => p.Identity.Length > 0).ToArray();
+        for (var i = 0; i < profiles.Length; i++)
+            for (var j = i + 1; j < profiles.Length; j++)
+                if (profiles[i].IsSameAccountAs(profiles[j]))
+                    throw new UsageException(FailureKind.Schema, "account_profile_duplicate");
         foreach (var preference in AccountPrefs.Values) AccountNames.NormalizeAlias(preference.Alias);
         ValidatePrimary();
     }

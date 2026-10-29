@@ -17,6 +17,7 @@ public sealed record AccountProfile
     public string Login { get; init; } = "";
     public string? CredentialTarget { get; init; }
     public string Executable { get; init; } = "";
+    public string? VscodeUserId { get; init; }
 
     // Codex
     public string Email { get; init; } = "";
@@ -37,6 +38,22 @@ public sealed record AccountProfile
         ? (string.IsNullOrWhiteSpace(Label) ? null : AccountKey.FromIdentity(Provider.Claude, Label).Id)
         : PinnedAccount;
 
+    [JsonIgnore]
+    public string? CanonicalAccountId => Provider == Provider.Copilot
+        ? VscodeUserId is { } userId
+            ? AccountKey.FromIdentity(Provider.Copilot, "github.com:" + userId).Id
+            : PinnedAccount
+        : null;
+
+    public bool IsSameAccountAs(AccountProfile other)
+    {
+        if (Provider != other.Provider) return false;
+        if (Provider == Provider.Copilot &&
+            CanonicalAccountId is { } accountId && other.CanonicalAccountId is { } otherAccountId)
+            return string.Equals(accountId, otherAccountId, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(Identity, other.Identity, StringComparison.OrdinalIgnoreCase);
+    }
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Id) || Id.Length > 64 || !Enum.IsDefined(Provider) ||
@@ -46,6 +63,16 @@ public sealed record AccountProfile
         if (Provider == Provider.Codex && Enabled && string.IsNullOrWhiteSpace(Home) ||
             Provider == Provider.Claude && Enabled && string.IsNullOrWhiteSpace(Snapshot))
             throw new UsageException(FailureKind.Schema, "account_profile_incomplete");
+        if (VscodeUserId is { } userId)
+        {
+            if (Provider != Provider.Copilot ||
+                !ulong.TryParse(userId, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out var numericId) || numericId == 0 ||
+                CredentialTarget is not null ||
+                PinnedAccount is { } pinned &&
+                pinned != AccountKey.FromIdentity(Provider.Copilot, "github.com:" + userId).Id)
+                throw new UsageException(FailureKind.Schema, "account_profile_invalid");
+        }
     }
 }
 
