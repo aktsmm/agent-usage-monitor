@@ -44,8 +44,8 @@ public partial class MainWindow : Window
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 snapshots = snapshots.Where(s => ids.Contains(s.Key.Account.Id)).ToArray();
             }
-            if (snapshots.Any(s => !s.Unlimited))
-                snapshots = snapshots.Where(s => !s.Unlimited).ToArray();
+            // Hide unlimited buckets only inside an account that also has limited ones; an all-unlimited account must stay visible.
+            snapshots = QuotaVisibility.HideUnlimitedPerAccount(snapshots).ToArray();
             content.Children.Add(Label(ConnectionText.Name(provider), 16, true));
             if (accounts.Length == 1)
             {

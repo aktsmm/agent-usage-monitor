@@ -141,6 +141,15 @@ static class AccountTests
             try { tampered.Validate(); } catch (UsageException) { rejected = true; }
             Check(rejected, "a hand-edited settings file cannot hold the same account twice");
         });
+        test("account with only unlimited buckets stays visible next to a limited account", () =>
+        {
+            var limited = Snap(Provider.Copilot, "alice-work", 40);
+            var unlimited = Snap(Provider.Copilot, "carol", 0) with { Unlimited = true };
+            var mixedLimited = Snap(Provider.Copilot, "alice-work", 0) with { Unlimited = true };
+            var shown = QuotaVisibility.HideUnlimitedPerAccount([limited, mixedLimited, unlimited]).ToArray();
+            Check(shown.Contains(limited) && shown.Contains(unlimited), "both accounts visible");
+            Check(!shown.Contains(mixedLimited), "unlimited bucket hidden inside a limited account");
+        });
         test("account strip shows two accounts of one service side by side and never sums them", () =>
         {
             var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { ShowInStrip = true });
