@@ -1,45 +1,50 @@
 # Multi-account support
 
-Several accounts of the same service (for example two GitHub Copilot logins, or two Codex / Claude contracts on one PC) are shown **side by side and never summed** — each is a separate contract.
+Several accounts of the same service (for example two GitHub Copilot logins, or two Codex / Claude contracts on one PC) are shown **side by side and never summed** — each is a separate contract. Available since v0.2.6.
 
 ## Model
 
 - The existing single-account settings remain the **primary** account of each service (ids `primary-copilot`, `primary-codex`, `primary-claude`). Old `settings.json` files load unchanged.
 - Extra accounts are `ExtraAccounts` (an `AccountProfile` each). Display choices are `AccountPrefs[profileId]`: `Alias`, `Visible`, `ShowInStrip`.
 - Name shown = alias, otherwise the identity before `@` (or the Codex home folder name). Same names within one service get `#1`, `#2`.
-- Strip: only accounts that are visible **and** `ShowInStrip`. The primary account defaults to shown, extras to hidden (the "pinned one" default). One item per service keeps the text `Copilot 42%`; with several it becomes `Copilot·alias 42%`.
-- Each extra is polled on its own. A failure or `AccountMismatch` clears only that account's cached values. History and notifications are already keyed by the account id.
-- Aliases are stored locally in `settings.json` only and are never sent anywhere or written to logs.
+- Strip: only accounts that are visible **and** `ShowInStrip`. The primary account defaults to shown, extras to hidden. One item per service keeps the text `Copilot 42%`; with several it becomes `Copilot·alias 42%`.
+- Each extra is polled on its own. Aliases are stored locally in `settings.json` only and are never sent anywhere or written to logs.
+
+## One account never changes what another shows
+
+Every rule that used to assume "one account per service" is decided per account (`AccountOverview`, `QuotaVisibility`):
+
+- A failure or `AccountMismatch` of the primary account hides only the primary account's values and marks only the primary as failed (overview and strip). Extras keep their own state.
+- Unlimited buckets are hidden only inside an account that also has limited ones. An account that reports only unlimited buckets (for example a business plan) stays visible as one card.
+- An account that has no value yet is listed with a waiting message instead of silently disappearing.
+- Startup never pins the primary account from values that belong to an additional account.
+- Notices and the history account picker name the account when a service has several.
+- The same account cannot be added twice: Copilot profiles are compared by the verified GitHub account ID (login names can change), others by identity. A settings file that lists the same account twice is rejected on load and save.
 
 ## How accounts are switched on one PC
 
 | Service | Supported setup | Status |
 | --- | --- | --- |
-| Codex | separate `CODEX_HOME` folders per account | the configured default home returned one usage snapshot on the real machine; a second home has not been configured or verified |
-| Claude Code | separate `CLAUDE_CONFIG_DIR` / statusline snapshot per account, with a manual label | the configured snapshot returned two usage snapshots on the real machine; additional config directories remain unverified, and snapshots cannot be bound to accounts automatically (see README) |
-| Copilot | one profile per GitHub CLI login or VS Code GitHub session (`Login`, source-specific identity) | `gh auth status` logins and fresh VS Code bridge snapshots can be discovered from the Add Account dialog |
+| Copilot | one profile per GitHub CLI (`gh`) login | verified on a real machine with three logins: a non-active login returns its own usage and an all-unlimited business account is shown |
+| Codex | separate `CODEX_HOME` folders per account | the default home works; a second home is not configured or verified |
+| Claude Code | separate `CLAUDE_CONFIG_DIR` / statusline snapshot per account, with a manual label | the configured snapshot works; additional config directories are unverified, and snapshots cannot be bound to accounts automatically (see README) |
 
 ## Automatic discovery
 
-For Copilot, the Add Account dialog reads `gh auth status --hostname github.com --json hosts` only when the user asks to find CLI accounts. It groups duplicate logins and offers only successful GitHub CLI logins; it does not switch the active login. VS Code accounts use the companion extension in `integrations/vscode`: the user selects accounts and approves VS Code's authentication prompt, then the extension calls GitHub and writes quota-only snapshots locally. The app reads those snapshots and verifies the pinned GitHub account ID. Profiles with the same login, or the same verified GitHub account ID across CLI and VS Code, cannot be added twice; already-configured Copilot accounts with the same verified ID render only once in the compact strip. The profile is saved only when the user saves Settings.
+For Copilot, the Add Account dialog reads `gh auth status --hostname github.com --json hosts` only when the user asks to find accounts. It groups duplicate logins, offers only logins whose status is successful, and does not switch the active login. The profile is saved only when the user saves Settings. The dialog states these conditions on screen and explains an empty result.
 
-The Add Account dialog states these detection conditions on screen: only GitHub CLI logins with a successful status are listed, and Codex and Claude are never detected automatically (paths are entered by hand). When a search returns nothing, the dialog says why instead of staying empty. A settings file that lists the same account twice (for example after hand editing) is rejected on load and save with the same duplicate error, instead of polling the account twice.
+Codex and Claude are never detected automatically: paths and labels are entered by hand. Accounts that exist only inside the GitHub Copilot desktop app (not signed in to `gh`) cannot be detected: the app's own credentials are not read. Sign that account in with `gh auth login` and search again.
 
-The GitHub CLI account list is separate from VS Code's sign-in list. The VS Code bridge uses the public authentication API rather than scanning VS Code's credential store; it refreshes every five minutes only while the extension host is running. It never gives the token to the desktop app. The usage endpoint is private and may reject VS Code-issued sessions. The standalone GitHub Copilot desktop app is not integrated. Codex does not expose a list of arbitrary `CODEX_HOME` directories, and Claude snapshots cannot be reliably associated with multiple `CLAUDE_CONFIG_DIR` accounts, so those additional profiles still require explicit paths and identity labels.
+`gh auth login` makes the new login the active one. Saved profiles are pinned to the verified GitHub account ID, so the displayed accounts do not change.
 
-## Before releasing
+## VS Code bridge (not shipped)
 
-Multi-account is not part of a published release yet (latest is v0.2.5; automatic update would deliver it to every installed copy, so it must not ship on unverified paths). Gate before any release of this work:
+`integrations/vscode` contains an optional extension that would share quota snapshots from VS Code's own GitHub sign-in. It is not reachable from the app UI and is not part of any release: it is unverified against a real VS Code session and depends on the private usage endpoint. The source stays for a future decision; removing it is tracked as open work.
 
-- Real-machine checks recorded as done: a non-active `gh` login returns Usage, a second `CODEX_HOME` returns Usage, Claude snapshots stay bound to the labelled account, and the Add Account / Settings screens were checked visually and with the keyboard.
-- Decide whether the VS Code bridge ships at all. It is unverified against a real VS Code session, depends on a private endpoint, and is not installed by the app.
-- Rebase on the current `main` (the branch was behind by several commits), bump the version, update release notes, and run tests plus the Release build.
-- Pushing, tagging and publishing need the repository owner's explicit approval (the release workflow is gated by the `release-approval` environment).
+## Known limits
 
-## Not done yet
-
-- The VS Code bridge's GitHub `copilot_internal/user` call is not verified with a real VS Code-issued session; the endpoint is private and may reject it.
+- The Copilot usage endpoint is private and may change.
 - A second Codex home and additional Claude config directories need real-machine verification when configured.
-- The new Settings UI has not been visually checked in a running Windows session.
+- Releases are unsigned and ship through GitHub Releases only; automatic update works for installed copies from v0.2.7 on (0.2.5 and 0.2.6 need one manual installer run).
 
 The Settings UI follows `docs/ui/multi-account-mock.html`. Existing single-account settings are represented as primary rows and remain editable in their existing service cards. To show another account in the native strip, enable its "In strip" preference; extras default off.

@@ -412,13 +412,13 @@ public sealed class SettingsWindow : Window
             var visible = Check("");
             visible.IsChecked = preference.Visible;
             visible.ToolTip = locale.Text(UiText.AccountShow);
-            AutomationProperties.SetName(visible, locale.Text(UiText.AccountShow) + ": " + rowName);
+            AutomationProperties.SetName(visible, AutomationText.ForButtonLike(locale.Text(UiText.AccountShow) + ": " + rowName));
             Grid.SetColumn(visible, 3);
             row.Children.Add(visible);
             var inStrip = Check("");
             inStrip.IsChecked = preference.ShowInStrip;
             inStrip.ToolTip = locale.Text(UiText.AccountStrip);
-            AutomationProperties.SetName(inStrip, locale.Text(UiText.AccountStrip) + ": " + rowName);
+            AutomationProperties.SetName(inStrip, AutomationText.ForButtonLike(locale.Text(UiText.AccountStrip) + ": " + rowName));
             Grid.SetColumn(inStrip, 4);
             row.Children.Add(inStrip);
             accountEditors[profile.Id] = new(alias, visible, inStrip, entry.Name);
@@ -427,7 +427,7 @@ public sealed class SettingsWindow : Window
             {
                 var removeText = locale.Text(UiText.RemoveAccount);
                 var remove = new Button { Content = removeText };
-                AutomationProperties.SetName(remove, removeText + ": " + rowName);
+                AutomationProperties.SetName(remove, AutomationText.ForButtonLike(removeText + ": " + rowName));
                 remove.HorizontalAlignment = HorizontalAlignment.Right;
                 remove.Click += (_, _) =>
                 {

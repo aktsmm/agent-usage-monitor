@@ -71,6 +71,16 @@ static class AccountTests
             }
             Check(s.RemoveAccount("x1").ExtraAccounts.Count == 0, "remove");
         });
+        test("automation names of checkboxes and buttons keep underscores of account names", () =>
+        {
+            const string name = "show: GitHub Copilot tatsumiy_microsoft";
+            var escaped = AutomationText.ForButtonLike(name);
+            var check = AutomationNameSmoke.NameOf(() =>
+            { var c = new System.Windows.Controls.CheckBox { Content = "" }; System.Windows.Automation.AutomationProperties.SetName(c, escaped); return c; });
+            var button = AutomationNameSmoke.NameOf(() =>
+            { var b = new System.Windows.Controls.Button { Content = "x" }; System.Windows.Automation.AutomationProperties.SetName(b, escaped); return b; });
+            Check(check == name && button == name, $"check='{check}' button='{button}'");
+        });
         test("Copilot profiles deduplicate by verified GitHub user id across CLI and VS Code", () =>
         {
             const string userId = "123456";
@@ -149,6 +159,10 @@ static class AccountTests
             var shown = QuotaVisibility.HideUnlimitedPerAccount([limited, mixedLimited, unlimited]).ToArray();
             Check(shown.Contains(limited) && shown.Contains(unlimited), "both accounts visible");
             Check(!shown.Contains(mixedLimited), "unlimited bucket hidden inside a limited account");
+            var chat = Snap(Provider.Copilot, "dave", 0) with { Unlimited = true, Used = 0, Key = new(AccountKey.FromIdentity(Provider.Copilot, "dave"), "chat") };
+            var premium = chat with { Used = 1825, Key = new(AccountKey.FromIdentity(Provider.Copilot, "dave"), "premium_interactions") };
+            var oneCard = QuotaVisibility.HideUnlimitedPerAccount([limited, chat, premium]).Where(s => s.Key.Account.Id == chat.Key.Account.Id).ToArray();
+            Check(oneCard.Length == 1 && oneCard[0] == premium, "all-unlimited account collapses to its busiest bucket");
         });
         test("overview: a primary mismatch hides only the primary's values, never another account's", () =>
         {
