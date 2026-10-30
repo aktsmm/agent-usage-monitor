@@ -35,17 +35,13 @@ public partial class MainWindow : Window
             var failure = app.LastFailures.GetValueOrDefault(provider);
             var accounts = app.Settings.Accounts().Where(a => a.Profile.Provider == provider &&
                 a.Profile.Enabled && a.Preference.Visible).ToArray();
-            var snapshots = failure?.Kind == FailureKind.AccountMismatch ? [] :
-                app.State.Latest.Where(s => s.Key.Account.Provider == provider).ToArray();
-            if (accounts.Length == 0) snapshots = [];
-            else if (accounts.Length > 1)
-            {
-                var ids = accounts.Select(a => a.Profile.ExpectedAccount).Where(id => id is not null)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                snapshots = snapshots.Where(s => ids.Contains(s.Key.Account.Id)).ToArray();
-            }
-            // Hide unlimited buckets only inside an account that also has limited ones; an all-unlimited account must stay visible.
-            snapshots = QuotaVisibility.HideUnlimitedPerAccount(snapshots).ToArray();
+            var snapshots = AccountOverview.Snapshots(accounts,
+                app.State.Latest.Where(s => s.Key.Account.Provider == provider),
+                failure?.Kind == FailureKind.AccountMismatch).ToArray();
+            var primaryEntry = accounts.FirstOrDefault(a => a.IsPrimary);
+            // The service-level failure belongs to the primary account only.
+            bool FailureApplies(string accountId) => failure is not null &&
+                (accounts.Length <= 1 || string.Equals(primaryEntry?.Profile.ExpectedAccount, accountId, StringComparison.OrdinalIgnoreCase));
             content.Children.Add(Label(ConnectionText.Name(provider), 16, true));
             if (accounts.Length == 1)
             {
@@ -71,7 +67,7 @@ public partial class MainWindow : Window
                 bool stale = !snapshot.IsFresh(DateTimeOffset.UtcNow, app.State.Polling.MaximumAge);
                 content.Children.Add(Label(locale.Text(snapshot.Window.Kind switch { WindowKind.Short => UiText.ShortQuota,
                     WindowKind.Weekly => UiText.WeeklyQuota, WindowKind.Monthly => UiText.MonthlyQuota, _ => UiText.UnknownQuotaWindow }), 12, true));
-                content.Children.Add(Label(locale.Text(stale ? UiText.Stale : failure is null ? UiText.Fetched : UiText.LastConfirmed)
+                content.Children.Add(Label(locale.Text(stale ? UiText.Stale : FailureApplies(accountGroup.Key) ? UiText.LastConfirmed : UiText.Fetched)
                     + " · " + snapshot.ObservedAt.ToOffset(JapaneseCalendar.Offset).ToString("g", locale.Culture) + " JST", 11));
                 var percent = snapshot.UsedPercent;
                 content.Children.Add(Label(snapshot.Unlimited ? locale.Text(UiText.Unlimited)
@@ -117,8 +113,17 @@ public partial class MainWindow : Window
                 content.Children.Add(new Expander { Header = locale.Text(UiText.QuotaDetails), Content = details });
                 }
             }
+            foreach (var missing in AccountOverview.WithoutData(accounts, snapshots))
+            {
+                content.Children.Add(Label(missing.Name, 13, true));
+                content.Children.Add(Label(locale.Text(UiText.AccountNoData), 11));
+            }
             if (failure is not null)
-                content.Children.Add(new TextBlock { Text = ConnectionText.Failure(failure, locale), Foreground = (Brush)FindResource("WarningBrush") });
+                content.Children.Add(new TextBlock
+                {
+                    Text = (accounts.Length > 1 && primaryEntry is not null ? primaryEntry.Name + ": " : "") + ConnectionText.Failure(failure, locale),
+                    Foreground = (Brush)FindResource("WarningBrush"), TextWrapping = TextWrapping.Wrap
+                });
             Cards.Children.Add(new Border
             {
                 Background = (Brush)FindResource("SoftBrush"), BorderBrush = (Brush)FindResource("BorderBrush"),

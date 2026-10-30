@@ -64,7 +64,7 @@ public enum UiText
     AccountName, AccountShow, AccountStrip, AccountService, AccountIdentity, PrimaryAccount,
     AccountLocalStorageNote, AccountSettingsInvalid, FindGithubAccounts, GithubCandidates,
     GithubActive, GithubNoNewAccounts, AccountAlreadyConfigured, FindVscodeAccounts,
-    VscodeBridgeHelp, VscodeNoNewAccounts, DetectionConditions, VscodeBridgeNotInstalled
+    VscodeBridgeHelp, VscodeNoNewAccounts, DetectionConditions, VscodeBridgeNotInstalled, AccountNoData
 }
 
 public sealed class UiLocalizer

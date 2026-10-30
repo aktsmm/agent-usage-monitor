@@ -21,6 +21,7 @@ public sealed class HistoryWindow : Window
 {
     private readonly Func<HistoryRequest, CancellationToken, Task<HistoryResponse>> send;
     private UiLocalizer localizer;
+    private readonly Func<AccountKey, string?>? accountName;
     private readonly List<Action> translations = [];
     private readonly CancellationTokenSource stopping = new();
     private readonly ComboBox provider = new(), account = new(), bucket = new(), range = new(), period = new();
@@ -38,9 +39,10 @@ public sealed class HistoryWindow : Window
     public bool IsLocationEditing { get; private set; }
 
     public HistoryWindow(Func<HistoryRequest, CancellationToken, Task<HistoryResponse>> send,
-        UiLocalizer? localizer = null)
+        UiLocalizer? localizer = null, Func<AccountKey, string?>? accountName = null)
     {
         this.send = send;
+        this.accountName = accountName;
         this.localizer = localizer ?? new();
         Resources.MergedDictionaries.Add(new ResourceDictionary
         {
@@ -296,7 +298,7 @@ public sealed class HistoryWindow : Window
         account.Items.Clear();
         foreach (var key in catalog.Where(c => c.Key.Account.Provider == (Provider)provider.SelectedItem)
             .Select(c => c.Key.Account).Distinct())
-            account.Items.Add(new ComboBoxItem { Content = key.Id[..8], Tag = key });
+            account.Items.Add(new ComboBoxItem { Content = accountName?.Invoke(key) ?? key.Id[..8], Tag = key });
         account.SelectedItem = account.Items.OfType<ComboBoxItem>().FirstOrDefault(i => Equals(i.Tag, selected));
         if (account.SelectedItem is null && account.Items.Count > 0) account.SelectedIndex = 0;
         PopulateBuckets();
