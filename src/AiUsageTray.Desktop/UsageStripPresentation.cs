@@ -21,17 +21,21 @@ public sealed record UsageStripPresentation(IReadOnlyList<UsageStripItem> Items,
         var values = UsageStrip.ValuesByAccount(settings.Accounts(), verified, now, maximumAge);
         var items = new List<UsageStripItem>();
         var tips = new List<string>();
+        // A service-level failure is the primary account's. Other accounts of the same service keep their own state.
+        bool Failed(AccountStripValue v) => failed.Contains(v.Provider) &&
+            (v.ProfileId == AccountNames.PrimaryId(v.Provider) ||
+             settings.Profiles().Count(p => p.Provider == v.Provider && p.Enabled) <= 1);
         foreach (var value in values)
         {
             var label = values.Count(v => v.Provider == value.Provider) > 1 ? $"{value.Provider}·{value.Name}" : value.Provider.ToString();
             var status = value.Ambiguous ? locale.Text(UiText.UsageStripAmbiguous)
-                : failed.Contains(value.Provider) ? locale.Text(UiText.UsageStripFetchFailed)
+                : Failed(value) ? locale.Text(UiText.UsageStripFetchFailed)
                 : value.Percentage is null ? locale.Text(UiText.UsageStripWaiting)
                 : value.Stale ? locale.Text(UiText.Stale) : locale.Text(UiText.UsageStripFresh);
             if (value.Percentage is { } percent)
             {
                 var text = $"{label} {percent.ToString("0.#", locale.Culture)}%";
-                items.Add(new(text, value.Stale || failed.Contains(value.Provider)));
+                items.Add(new(text, value.Stale || Failed(value)));
                 tips.Add(text + " · " + status);
             }
             else tips.Add(label + " · " + status);

@@ -141,6 +141,60 @@ static class AccountTests
             try { tampered.Validate(); } catch (UsageException) { rejected = true; }
             Check(rejected, "a hand-edited settings file cannot hold the same account twice");
         });
+        test("account with only unlimited buckets stays visible next to a limited account", () =>
+        {
+            var limited = Snap(Provider.Copilot, "alice-work", 40);
+            var unlimited = Snap(Provider.Copilot, "carol", 0) with { Unlimited = true };
+            var mixedLimited = Snap(Provider.Copilot, "alice-work", 0) with { Unlimited = true };
+            var shown = QuotaVisibility.HideUnlimitedPerAccount([limited, mixedLimited, unlimited]).ToArray();
+            Check(shown.Contains(limited) && shown.Contains(unlimited), "both accounts visible");
+            Check(!shown.Contains(mixedLimited), "unlimited bucket hidden inside a limited account");
+        });
+        test("overview: a primary mismatch hides only the primary's values, never another account's", () =>
+        {
+            var s = baseSettings.AddAccount(Extra("x1", "carol"));
+            var shown = s.Accounts().ToArray();
+            var snaps = new[] { Snap(Provider.Copilot, "alice-work", 40), Snap(Provider.Copilot, "carol", 70) };
+            var hidden = AccountOverview.Snapshots(shown, snaps, primaryAccountMismatch: true);
+            Check(hidden.Count == 1 && hidden[0].UsedPercent == 70, "extra survives primary mismatch");
+            var normal = AccountOverview.Snapshots(shown, snaps, primaryAccountMismatch: false);
+            Check(normal.Count == 2, "both shown without mismatch");
+            var single = AccountOverview.Snapshots(baseSettings.Accounts().ToArray(), [snaps[0]], primaryAccountMismatch: true);
+            Check(single.Count == 0, "single account is still emptied by its own mismatch");
+        });
+        test("overview: accounts without data are listed, not silently absent", () =>
+        {
+            var s = baseSettings.AddAccount(Extra("x1", "carol"));
+            var shown = s.Accounts().ToArray();
+            var missing = AccountOverview.WithoutData(shown, [Snap(Provider.Copilot, "alice-work", 40)]);
+            Check(missing.Count == 1 && missing[0].Profile.Id == "x1", "carol listed");
+            Check(AccountOverview.WithoutData(baseSettings.Accounts().ToArray(), []).Count == 0, "single account uses the service message");
+        });
+        test("notices name the account when a service has several, and stay unchanged otherwise", () =>
+        {
+            var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { Alias = "Home" });
+            var carol = new AccountKey(Provider.Copilot, AccountKey.FromIdentity(Provider.Copilot, "carol").Id);
+            Check(AccountOverview.NoticeSubject(s.Accounts().ToArray(), carol, "Copilot") == "Copilot · Home", "named");
+            Check(AccountOverview.NoticeSubject(baseSettings.Accounts().ToArray(), carol, "Copilot") == "Copilot", "single unchanged");
+            Check(AccountOverview.NameOf(s.Accounts().ToArray(), carol) == "Home", "history name");
+        });
+        test("pinning the primary ignores values that belong to additional accounts", () =>
+        {
+            var carolKey = AccountKey.FromIdentity(Provider.Copilot, "carol").Id;
+            var s = new DesktopSettings { CopilotEnabled = true, CopilotMode = ConnectionMode.Manual, GithubLogin = "alice-work" }
+                .AddAccount(Extra("x1", "carol"));
+            var state = new UsageState { Latest = [Snap(Provider.Copilot, "carol", 70)] };
+            Check(s.PinExisting(state).GithubPinnedAccount is null, "primary must not be pinned to carol");
+            Check(carolKey.Length == 64, "sanity");
+        });
+        test("account strip: a primary failure does not mark another account as failed", () =>
+        {
+            var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { ShowInStrip = true });
+            var strip = UsageStripPresentation.Create(s,
+                [Snap(Provider.Copilot, "alice-work", 40), Snap(Provider.Copilot, "carol", 70)],
+                now, TimeSpan.FromMinutes(10), [Provider.Copilot]);
+            Check(strip.Items.Count == 2 && strip.Items[0].Stale && !strip.Items[1].Stale, "only the primary is marked");
+        });
         test("account strip shows two accounts of one service side by side and never sums them", () =>
         {
             var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { ShowInStrip = true });

@@ -656,7 +656,9 @@ public sealed class TrayHost
                         if (result.Failures.Any(f => f.Kind == FailureKind.AccountMismatch))
                         {
                             verifiedSelections.Remove(provider);
-                            state.Latest.RemoveAll(s => s.Key.Account.Provider == provider);
+                            var extraIds = ExtraAccountIds(settings);
+                            state.Latest.RemoveAll(s => s.Key.Account.Provider == provider &&
+                                !extraIds.Contains(s.Key.Account.Id));
                         }
                         if (result.Succeeded && selected.PinnedAccount(provider) is null &&
                             provider is Provider.Copilot or Provider.Codex)
@@ -727,14 +729,17 @@ public sealed class TrayHost
         }
     }
 
+    private string NoticeSubject(NotificationCandidate n) =>
+        AccountOverview.NoticeSubject(settings.Accounts(), n.Key.Account, ConnectionText.Name(n.Key.Account.Provider));
+
     private string NoticeText(NotificationCandidate n) => n.Reason switch
     {
         NotificationReason.DailyGuidance or NotificationReason.WeeklyGuidance => Locale.Format(UiText.NotificationGuidance,
-            ConnectionText.Name(n.Key.Account.Provider), n.Key.Bucket,
+            NoticeSubject(n), n.Key.Bucket,
             Locale.Text(n.Reason == NotificationReason.DailyGuidance ? UiText.Daily : UiText.Weekly),
             Locale.Coverage(n.Coverage ?? Coverage.Partial)),
-        NotificationReason.Reset => Locale.Format(UiText.NotificationReset, ConnectionText.Name(n.Key.Account.Provider), n.Key.Bucket),
-        _ => Locale.Format(UiText.NotificationUsage, ConnectionText.Name(n.Key.Account.Provider), n.Key.Bucket,
+        NotificationReason.Reset => Locale.Format(UiText.NotificationReset, NoticeSubject(n), n.Key.Bucket),
+        _ => Locale.Format(UiText.NotificationUsage, NoticeSubject(n), n.Key.Bucket,
             string.Join(" / ", n.CrossedLevels.Select(level => level.ToString("0.##", Locale.Culture) + "%")))
     };
 

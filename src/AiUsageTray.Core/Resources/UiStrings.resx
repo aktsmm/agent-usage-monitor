@@ -331,6 +331,7 @@ Shown after quota total and period are available.</value></data>
   <data name="GithubNoNewAccounts" xml:space="preserve"><value>No new GitHub CLI accounts found. Only accounts signed in with “gh auth login” whose status is successful are listed.</value></data>
   <data name="DetectionConditions" xml:space="preserve"><value>What can be detected: GitHub CLI logins (successful status only). Codex and Claude are not detected automatically; enter their paths yourself.</value></data>
   <data name="VscodeBridgeNotInstalled" xml:space="preserve"><value>No VS Code connection data exists yet. Install the companion extension (integrations/vscode), then run “Agent Usage Monitor: Connect GitHub accounts” in VS Code.</value></data>
+  <data name="AccountNoData" xml:space="preserve"><value>No usage value yet. It appears after the first successful fetch; if it stays empty, check that the account is still signed in.</value></data>
   <data name="AccountAlreadyConfigured" xml:space="preserve"><value>This account is already configured.</value></data>
   <data name="FindVscodeAccounts" xml:space="preserve"><value>Find VS Code accounts</value></data>
   <data name="VscodeBridgeHelp" xml:space="preserve"><value>Run “Agent Usage Monitor: Connect GitHub accounts” in VS Code first. The extension stores only account identity and quota values locally; tokens stay in VS Code.</value></data>

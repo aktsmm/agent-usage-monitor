@@ -227,9 +227,12 @@ public sealed record DesktopSettings
     public DesktopSettings PinExisting(UsageState state)
     {
         var updated = this;
+        var extraAccounts = ExtraAccounts.Select(p => p.ExpectedAccount).OfType<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var provider in new[] { Provider.Copilot, Provider.Codex })
         {
-            var keys = state.Latest.Where(s => s.Key.Account.Provider == provider)
+            // Values of additional accounts are not evidence of who the primary account is.
+            var keys = state.Latest.Where(s => s.Key.Account.Provider == provider && !extraAccounts.Contains(s.Key.Account.Id))
                 .Select(s => s.Key.Account.Id).Distinct().ToArray();
             if (Mode(provider) == ConnectionMode.Manual && PinnedAccount(provider) is null && keys.Length == 1)
                 updated = updated.PinAccount(provider, keys[0]);
