@@ -102,12 +102,17 @@ public sealed class NativeTray : IDisposable
         if (SetTimer(Handle, new UIntPtr(1), 60_000, IntPtr.Zero) == UIntPtr.Zero)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "host_timer_failed");
     }
+    // The update helper has no window and is not the foreground process, so a plain MessageBox opens behind other windows and looks like nothing happened.
+    public const uint DialogForeground = 0x00010000 | 0x00040000; // MB_SETFOREGROUND | MB_TOPMOST
+    public const uint ErrorDialog = 16 | DialogForeground;
+    public const uint InformationDialog = 64 | DialogForeground;
+    public const uint ConfirmDialog = 4 | 32 | DialogForeground;
     public static void ShowError(string text, UiLocalizer? locale = null) =>
-        MessageBox(IntPtr.Zero, text, (locale ?? new()).Text(UiText.AgentUsage), 16);
+        MessageBox(IntPtr.Zero, text, (locale ?? new()).Text(UiText.AgentUsage), ErrorDialog);
     public static void ShowInformation(string text, UiLocalizer? locale = null) =>
-        MessageBox(IntPtr.Zero, text, (locale ?? new()).Text(UiText.AgentUsage), 64);
+        MessageBox(IntPtr.Zero, text, (locale ?? new()).Text(UiText.AgentUsage), InformationDialog);
     public static bool Confirm(string text, UiLocalizer? locale = null) =>
-        MessageBox(IntPtr.Zero, text, (locale ?? new()).Text(UiText.AgentUsage), 4 | 32) == 6;
+        MessageBox(IntPtr.Zero, text, (locale ?? new()).Text(UiText.AgentUsage), ConfirmDialog) == 6;
 
     private IconData Data(uint flags) => new()
     {
