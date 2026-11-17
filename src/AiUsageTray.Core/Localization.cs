@@ -65,7 +65,7 @@ public enum UiText
     AccountLocalStorageNote, AccountSettingsInvalid, FindGithubAccounts, GithubCandidates,
     GithubActive, GithubNoNewAccounts, AccountAlreadyConfigured, FindVscodeAccounts,
     VscodeBridgeHelp, VscodeNoNewAccounts, DetectionConditions, VscodeBridgeNotInstalled, AccountNoData,
-    UnlimitedUsage, NotificationAmount, AmountStepInput
+    UnlimitedUsage, NotificationAmount, AmountStepInput, ServiceLabelInput
 }
 
 public sealed class UiLocalizer

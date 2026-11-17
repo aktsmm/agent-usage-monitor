@@ -42,6 +42,7 @@ public sealed class SettingsWindow : Window
     private readonly TextBox claudeLabel = new();
     private readonly StackPanel accountRows = Panel();
     private readonly Dictionary<string, AccountRow> accountEditors = [];
+    private readonly Dictionary<Provider, TextBox> serviceLabelBoxes = [];
     private readonly ComboBox theme = new();
     private readonly CheckBox autostart = Check("");
     private readonly CheckBox autoUpdate = Check("");
@@ -66,7 +67,7 @@ public sealed class SettingsWindow : Window
     private QuotaKey? selected;
     private bool changing;
     private int selectedIndex;
-    private sealed record AccountRow(TextBox Alias, CheckBox Visible, CheckBox InStrip, string DefaultName);
+    private sealed record AccountRow(TextBox Alias, CheckBox Visible, CheckBox InStrip, string InitialText, string? StoredAlias, string AutoName);
 
     public SettingsWindow(App app, bool showAppearance = false)
     {
@@ -211,6 +212,14 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(Label(UiText.ConnectionIntro));
         panel.Children.Add(Label(UiText.AccountsHeading));
         panel.Children.Add(Label(UiText.AccountsNote));
+        foreach (var service in Enum.GetValues<Provider>())
+        {
+            var box = new TextBox { MaxLength = AccountNames.MaximumAlias };
+            serviceLabelBoxes[service] = box;
+            var heading = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 2) };
+            translations.Add(() => { heading.Text = locale.Format(UiText.ServiceLabelInput, ConnectionText.Name(service)); AutomationProperties.SetName(box, heading.Text); });
+            panel.Children.Add(heading); panel.Children.Add(box);
+        }
         accountRows.Children.Clear();
         panel.Children.Add(accountRows);
         var addAccount = Button(UiText.AddAccount);
@@ -367,6 +376,8 @@ public sealed class SettingsWindow : Window
 
     private void LoadAccountRows(DesktopSettings settings)
     {
+        foreach (var (service, box) in serviceLabelBoxes)
+            box.Text = settings.ServiceLabels.GetValueOrDefault(service) ?? "";
         accountRows.Children.Clear();
         accountEditors.Clear();
         var header = new Grid { Margin = new Thickness(0, 8, 0, 3) };
@@ -423,7 +434,7 @@ public sealed class SettingsWindow : Window
             AutomationProperties.SetName(inStrip, AutomationText.ForButtonLike(locale.Text(UiText.AccountStrip) + ": " + rowName));
             Grid.SetColumn(inStrip, 4);
             row.Children.Add(inStrip);
-            accountEditors[profile.Id] = new(alias, visible, inStrip, entry.Name);
+            accountEditors[profile.Id] = new(alias, visible, inStrip, alias.Text, preference.Alias, AccountNames.Auto(profile));
             accountRows.Children.Add(row);
             if (!entry.IsPrimary)
             {
@@ -447,12 +458,13 @@ public sealed class SettingsWindow : Window
 
     private DesktopSettings ReadAccountPreferences(DesktopSettings settings)
     {
+        foreach (var (service, box) in serviceLabelBoxes)
+            settings = settings.WithServiceLabel(service, box.Text);
         foreach (var entry in settings.Accounts())
             if (accountEditors.TryGetValue(entry.Profile.Id, out var editor))
                 settings = settings.WithPreference(entry.Profile.Id, new AccountPreference
                 {
-                    Alias = string.Equals(editor.Alias.Text.Trim(), editor.DefaultName, StringComparison.Ordinal)
-                        ? null : editor.Alias.Text,
+                    Alias = AccountNames.AliasToStore(editor.Alias.Text, editor.InitialText, editor.StoredAlias, editor.AutoName),
                     Visible = editor.Visible.IsChecked == true,
                     ShowInStrip = editor.InStrip.IsChecked == true
                 });

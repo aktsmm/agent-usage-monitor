@@ -318,6 +318,7 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="RemoveAccount" xml:space="preserve"><value>削除</value></data>
   <data name="RemoveAccountConfirm" xml:space="preserve"><value>アカウント設定「{0}」を削除しますか？利用履歴自体は削除されません。</value></data>
   <data name="AccountName" xml:space="preserve"><value>表示名</value></data>
+  <data name="ServiceLabelInput" xml:space="preserve"><value>常駐ストリップでのサービス短縮名（{0}。空欄で既定。例: cp）</value></data>
   <data name="AccountShow" xml:space="preserve"><value>表示</value></data>
   <data name="AccountStrip" xml:space="preserve"><value>小型表示</value></data>
   <data name="AccountService" xml:space="preserve"><value>サービス</value></data>

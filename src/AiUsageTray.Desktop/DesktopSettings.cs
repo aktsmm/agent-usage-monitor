@@ -43,6 +43,15 @@ public sealed record DesktopSettings
     public bool StartAtLogon { get; init; }
     public List<AccountProfile> ExtraAccounts { get; init; } = [];
     public Dictionary<string, AccountPreference> AccountPrefs { get; init; } = [];
+    // Short service names for the strip (for example cp for Copilot); an empty or missing entry keeps the default name.
+    public Dictionary<Provider, string> ServiceLabels { get; init; } = [];
+
+    public DesktopSettings WithServiceLabel(Provider provider, string? label)
+    {
+        var labels = new Dictionary<Provider, string>(ServiceLabels ?? []);
+        if (AccountNames.NormalizeAlias(label) is { } normalized) labels[provider] = normalized; else labels.Remove(provider);
+        return this with { ServiceLabels = labels };
+    }
 
     /// <summary>Primary connection of each service (the legacy single-account fields) followed by the extra accounts.</summary>
     public IReadOnlyList<AccountProfile> Profiles()
@@ -105,7 +114,8 @@ public sealed record DesktopSettings
 
     public void Validate()
     {
-        if (ExtraAccounts is null || AccountPrefs is null) throw new UsageException(FailureKind.Schema, "settings_invalid");
+        if (ExtraAccounts is null || AccountPrefs is null || ServiceLabels is null) throw new UsageException(FailureKind.Schema, "settings_invalid");
+        foreach (var label in ServiceLabels.Values) AccountNames.NormalizeAlias(label);
         foreach (var extra in ExtraAccounts) extra.Validate();
         if (ExtraAccounts.Select(p => p.Id).Distinct().Count() != ExtraAccounts.Count ||
             ExtraAccounts.Any(p => p.Id.StartsWith("primary-", StringComparison.Ordinal)))

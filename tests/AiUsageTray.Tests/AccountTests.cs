@@ -34,6 +34,61 @@ static class AccountTests
             try { s.WithPreference("x1", new() { Alias = "bad\nname" }); } catch (UsageException) { rejected = true; }
             Check(rejected, "control char alias");
         });
+        test("saving an unchanged row keeps the stored alias instead of resetting it to the default", () =>
+        {
+            // Regression: the shown text of an aliased row equals its current display name, which used to be treated as "default".
+            Check(AccountNames.AliasToStore("cp1", "cp1", "cp1", "aktsmm") == "cp1", "unchanged alias kept");
+            Check(AccountNames.AliasToStore("aktsmm", "aktsmm", null, "aktsmm") is null, "unchanged default stays default");
+            Check(AccountNames.AliasToStore("alice #2", "alice #2", null, "alice") is null, "suffixed name is not stored");
+            Check(AccountNames.AliasToStore("", "cp1", "cp1", "aktsmm") is null, "empty field resets to default");
+            Check(AccountNames.AliasToStore("aktsmm", "cp1", "cp1", "aktsmm") is null, "typing the automatic name resets to default");
+            Check(AccountNames.AliasToStore("  Home ", "cp1", "cp1", "aktsmm") == "Home", "a changed alias is stored trimmed");
+            var rejected = false;
+            try { AccountNames.AliasToStore("bad\nname", "x", null, "auto"); } catch (UsageException) { rejected = true; }
+            Check(rejected, "control characters are still rejected");
+        });
+        test("service labels default to the service name and accept short custom names", () =>
+        {
+            Check(AccountNames.ServiceLabel(Provider.Copilot, null) == "Copilot", "default");
+            Check(AccountNames.ServiceLabel(Provider.Copilot, new Dictionary<Provider, string> { [Provider.Copilot] = " cp " }) == "cp", "custom trimmed");
+            Check(AccountNames.ServiceLabel(Provider.Codex, new Dictionary<Provider, string> { [Provider.Copilot] = "cp" }) == "Codex", "other service unchanged");
+            Check(AccountNames.ServiceLabel(Provider.Claude, new Dictionary<Provider, string> { [Provider.Claude] = "  " }) == "Claude", "blank means default");
+        });
+        test("a row saved twice without edits keeps its alias (settings screen round trip)", () =>
+        {
+            // Simulates the settings screen: open with the stored alias, press save twice without editing, across a JSON round trip.
+            var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { Alias = "cp1", ShowInStrip = true });
+            for (var round = 0; round < 3; round++)
+            {
+                s = JsonSerializer.Deserialize<DesktopSettings>(JsonSerializer.Serialize(s, StateStore.JsonOptions), StateStore.JsonOptions)!;
+                foreach (var entry in s.Accounts())
+                {
+                    var shown = entry.Preference.Alias ?? entry.Name;
+                    s = s.WithPreference(entry.Profile.Id, entry.Preference with
+                    { Alias = AccountNames.AliasToStore(shown, shown, entry.Preference.Alias, AccountNames.Auto(entry.Profile)) });
+                }
+            }
+            Check(s.AccountPrefs["x1"].Alias == "cp1", "alias survived three saves");
+            Check(s.Accounts().Single(e => e.Profile.Id == "x1").Name == "cp1", "display name still the alias");
+        });
+        test("service short names persist, validate, stay optional in old settings and shape the strip text", () =>
+        {
+            var s = baseSettings.WithServiceLabel(Provider.Copilot, " cp ").WithServiceLabel(Provider.Codex, "cx").WithServiceLabel(Provider.Codex, "");
+            Check(s.ServiceLabels.Count == 1 && s.ServiceLabels[Provider.Copilot] == "cp", "stored trimmed; empty removes");
+            var rejected = false;
+            try { s.WithServiceLabel(Provider.Claude, "bad\nlabel"); } catch (UsageException) { rejected = true; }
+            Check(rejected, "control characters rejected");
+            var legacy = JsonSerializer.Deserialize<DesktopSettings>("""{"CopilotEnabled":true,"GithubLogin":"alice-work"}""", StateStore.JsonOptions)!;
+            Check(legacy.ServiceLabels.Count == 0, "old settings load with no labels");
+            legacy.Validate();
+            var snap = Snap(Provider.Copilot, "alice-work", 6.1m);
+            var single = UsageStripPresentation.Create(s, [snap], now, TimeSpan.FromMinutes(10));
+            Check(single.Text == "cp 6.1%", "single account uses the short name: " + single.Text);
+            Check(UsageStripPresentation.Create(baseSettings, [snap], now, TimeSpan.FromMinutes(10)).Text == "Copilot 6.1%", "default unchanged");
+            var multi = s.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { Alias = "Home", ShowInStrip = true });
+            var text = UsageStripPresentation.Create(multi, [snap, Snap(Provider.Copilot, "carol", 70)], now, TimeSpan.FromMinutes(10)).Text;
+            Check(text == "cp·alice-work 6.1%  |  cp·Home 70%", "multi: " + text);
+        });
         test("account legacy settings become one primary profile per service and strip defaults to the primary only", () =>
         {
             var s = baseSettings.AddAccount(Extra("x1", "carol"));
