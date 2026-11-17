@@ -70,7 +70,7 @@ public partial class MainWindow : Window
                 content.Children.Add(Label(locale.Text(stale ? UiText.Stale : FailureApplies(accountGroup.Key) ? UiText.LastConfirmed : UiText.Fetched)
                     + " · " + snapshot.ObservedAt.ToOffset(JapaneseCalendar.Offset).ToString("g", locale.Culture) + " JST", 11));
                 var percent = snapshot.UsedPercent;
-                content.Children.Add(Label(snapshot.Unlimited ? locale.Text(UiText.Unlimited)
+                content.Children.Add(Label(snapshot.Unlimited ? locale.UnlimitedHeadline(snapshot)
                     : percent is { } used ? locale.Format(UiText.UsedRemaining, used, 100 - used)
                     : snapshot.Used is { } scalar ? locale.Format(UiText.ScalarWithoutDenominator, scalar, locale.Unit(snapshot.Unit))
                     : locale.Text(UiText.UnknownUsage), 21, true));

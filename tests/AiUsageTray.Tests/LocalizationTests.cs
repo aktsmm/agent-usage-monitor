@@ -39,6 +39,18 @@ static class LocalizationTests
                 True(Fields(a).SequenceEqual(Fields(b)));
             }
         });
+        Test("unlimited quota shows the reported usage amount in both languages", () =>
+        {
+            var key = new QuotaKey(AccountKey.FromIdentity(Provider.Copilot, "synthetic"), "chat");
+            var window = new QuotaWindow(WindowKind.Monthly, null, null);
+            QuotaSnapshot Unlimited(UsageUnit unit, decimal? used) => new(key, "synthetic", UsageSource.CopilotHttp,
+                DateTimeOffset.UnixEpoch, unit, used, null, null, true, window, used);
+            var ja = new UiLocalizer(DisplayLanguage.Japanese);
+            var en = new UiLocalizer(DisplayLanguage.English);
+            Equal("上限なし · 今期の使用量 1,234.5 クレジット", ja.UnlimitedHeadline(Unlimited(UsageUnit.Credits, 1234.5m)));
+            Equal("Unlimited · usage this period 0 credits", en.UnlimitedHeadline(Unlimited(UsageUnit.Credits, 0m)).Replace("Credits", "credits"));
+            Equal(ja.Text(UiText.Unlimited), ja.UnlimitedHeadline(Unlimited(UsageUnit.Unknown, null)));
+        });
         Test("system language selects Japanese only for ja cultures", () =>
         {
             foreach (string culture in new[] { "ja", "ja-JP" })
