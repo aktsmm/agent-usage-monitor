@@ -6,7 +6,8 @@ public sealed record UsageStripValue(Provider Provider, WindowKind Window, decim
     DateTimeOffset? ObservedAt, bool Stale, bool Ambiguous);
 
 public sealed record AccountStripValue(string ProfileId, Provider Provider, string Name, WindowKind Window,
-    decimal? Percentage, DateTimeOffset? ObservedAt, bool Stale, bool Ambiguous);
+    decimal? Percentage, DateTimeOffset? ObservedAt, bool Stale, bool Ambiguous,
+    decimal? Amount = null, UsageUnit Unit = UsageUnit.Unknown, bool Unlimited = false);
 
 public static class UsageStrip
 {
@@ -35,11 +36,18 @@ public static class UsageStrip
             var window = provider == Provider.Copilot ? WindowKind.Monthly : WindowKind.Weekly;
             var expected = entry.Profile.ExpectedAccount;
             var soleOfService = all.Count(e => e.Profile.Provider == provider && e.Profile.Enabled) == 1;
-            var candidates = list.Where(s => s.Key.Account.Provider == provider && s.Window.Kind == window && !s.Unlimited &&
+            var matching = list.Where(s => s.Key.Account.Provider == provider && s.Window.Kind == window &&
                 (expected is null ? soleOfService : string.Equals(expected, s.Key.Account.Id, StringComparison.OrdinalIgnoreCase))).ToArray();
-            var snapshot = candidates.Length == 1 ? candidates[0] : null;
-            return new AccountStripValue(entry.Profile.Id, provider, entry.Name, window, snapshot?.UsedPercent, snapshot?.ObservedAt,
-                snapshot is not null && !snapshot.IsFresh(now, maximumAge), candidates.Length > 1);
+            var candidates = matching.Where(s => !s.Unlimited).ToArray();
+            // An account that only reports unlimited quotas shows its busiest bucket's reported amount (no percentage exists).
+            var unlimited = candidates.Length == 0
+                ? matching.Where(s => s.HasMeasurement).OrderByDescending(s => s.Used ?? 0)
+                    .ThenBy(s => s.Key.Bucket, StringComparer.Ordinal).FirstOrDefault()
+                : null;
+            var snapshot = candidates.Length == 1 ? candidates[0] : unlimited;
+            return new AccountStripValue(entry.Profile.Id, provider, entry.Name, window, unlimited is null ? snapshot?.UsedPercent : null,
+                snapshot?.ObservedAt, snapshot is not null && !snapshot.IsFresh(now, maximumAge), candidates.Length > 1,
+                unlimited?.Used, unlimited?.Unit ?? UsageUnit.Unknown, unlimited is not null);
         }).ToArray();
     }
 

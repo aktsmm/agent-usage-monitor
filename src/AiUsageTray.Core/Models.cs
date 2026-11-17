@@ -15,7 +15,7 @@ public enum FailureKind
 }
 public enum DeltaKind { Baseline, Consumption, Reset, Adjustment, DefinitionChanged }
 public enum Coverage { Unmeasured, Partial, CompleteToObservation }
-public enum NotificationReason { PercentageStep, Threshold, DailyGuidance, WeeklyGuidance, Reset }
+public enum NotificationReason { PercentageStep, Threshold, DailyGuidance, WeeklyGuidance, Reset, AmountStep }
 
 public sealed record AccountKey(Provider Provider, string Id)
 {
@@ -95,10 +95,15 @@ public sealed record NotificationRules
     public bool DailyGuidance { get; init; } = true;
     public bool WeeklyGuidance { get; init; } = true;
     public bool Reset { get; init; } = true;
+    // Quotas without a ceiling cannot use percentages, so they notify every N reported credits (AIC).
+    public decimal? AmountStep { get; init; } = DefaultAmountStep;
+
+    public const decimal DefaultAmountStep = 5000;
+    public const decimal MaximumAmountLevels = 200;
 
     public void Validate()
     {
-        if (PercentageStep is < 1 or > 100 ||
+        if (PercentageStep is < 1 or > 100 || AmountStep is <= 0 ||
             Thresholds is null || Thresholds.Any(x => x <= 0 || x > 100) || Thresholds.Distinct().Count() != Thresholds.Length)
             throw new UsageException(FailureKind.Schema, "Invalid notification rules.");
     }

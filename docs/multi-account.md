@@ -7,7 +7,7 @@ Several accounts of the same service (for example two GitHub Copilot logins, or 
 - The existing single-account settings remain the **primary** account of each service (ids `primary-copilot`, `primary-codex`, `primary-claude`). Old `settings.json` files load unchanged.
 - Extra accounts are `ExtraAccounts` (an `AccountProfile` each). Display choices are `AccountPrefs[profileId]`: `Alias`, `Visible`, `ShowInStrip`.
 - Name shown = alias, otherwise the identity before `@` (or the Codex home folder name). Same names within one service get `#1`, `#2`.
-- Strip: only accounts that are visible **and** `ShowInStrip`. The primary account defaults to shown, extras to hidden. One item per service keeps the text `Copilot 42%`; with several it becomes `Copilot·alias 42%`.
+- Strip: only accounts that are visible **and** `ShowInStrip`. The primary account defaults to shown, extras to hidden. One item per service keeps the text `Copilot 42%`; with several it becomes `Copilot·alias 42%`. An account that reports only unlimited quotas shows the compact reported amount of its busiest bucket instead (`Copilot·alias 67k`, full amount and unit in the tooltip); an account with a limited quota keeps its percentage.
 - Each extra is polled on its own. Aliases are stored locally in `settings.json` only and are never sent anywhere or written to logs.
 
 ## One account never changes what another shows

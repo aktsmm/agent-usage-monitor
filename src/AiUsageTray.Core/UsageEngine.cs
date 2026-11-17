@@ -47,9 +47,22 @@ public static class UsageEngine
             if (reset && rules.Reset)
                 Add(state, candidates, current, "reset", NotificationReason.Reset, ["reset"], [], now);
             if (kind is DeltaKind.Adjustment or DeltaKind.DefinitionChanged || !current.HasMeasurement ||
-                current.Unlimited || current.Window.ResetsAt is null)
+                current.Window.ResetsAt is null)
                 continue;
-
+            if (current.Unlimited)
+            {
+                // No ceiling: percentages, thresholds and guidance do not apply; notify every AmountStep reported credits.
+                if (rules.AmountStep is { } amountStep && current.Used is { } amountUsed)
+                {
+                    var reached = (int)Math.Min(decimal.Floor(amountUsed / amountStep), int.MaxValue);
+                    var first = Math.Max(1, reached - (int)NotificationRules.MaximumAmountLevels + 1);
+                    var levels = Enumerable.Range(first, Math.Max(0, reached - first + 1))
+                        .Select(i => i * amountStep).ToArray();
+                    Add(state, candidates, current, $"amount:{Number(amountStep)}",
+                        NotificationReason.AmountStep, levels.Select(Number).ToArray(), levels, now);
+                }
+                continue;
+            }
             if (current.UsedPercent is { } percent)
             {
                 if (rules.PercentageStep is { } step)
