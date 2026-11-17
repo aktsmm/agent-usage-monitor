@@ -64,7 +64,8 @@ public enum UiText
     AccountName, AccountShow, AccountStrip, AccountService, AccountIdentity, PrimaryAccount,
     AccountLocalStorageNote, AccountSettingsInvalid, FindGithubAccounts, GithubCandidates,
     GithubActive, GithubNoNewAccounts, AccountAlreadyConfigured, FindVscodeAccounts,
-    VscodeBridgeHelp, VscodeNoNewAccounts, DetectionConditions, VscodeBridgeNotInstalled, AccountNoData
+    VscodeBridgeHelp, VscodeNoNewAccounts, DetectionConditions, VscodeBridgeNotInstalled, AccountNoData,
+    UnlimitedUsage
 }
 
 public sealed class UiLocalizer
@@ -107,6 +108,12 @@ public sealed class UiLocalizer
 
     public string Format(UiText key, params object?[] arguments) =>
         string.Format(Culture, Text(key), arguments);
+
+    // An unlimited quota has no denominator, so show only the absolute usage the API reported.
+    public string UnlimitedHeadline(QuotaSnapshot snapshot) =>
+        snapshot.Used is { } amount && snapshot.Unit != UsageUnit.Unknown
+            ? Format(UiText.UnlimitedUsage, amount, Unit(snapshot.Unit))
+            : Text(UiText.Unlimited);
 
     public string Unit(UsageUnit unit) => Text(unit switch
     {
