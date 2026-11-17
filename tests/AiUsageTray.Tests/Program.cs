@@ -1228,6 +1228,7 @@ AsyncTest("legacy JSON migration runs once and retains manual fields", async () 
 HostLifetimeTests.Register(Test);
 UsageStripPresentationTests.Register(Test);
 AccountTests.Register(Test);
+QualityGuardTests.Register(Test);
 Test("native strip renders hatch contrast localized tooltip hit-test and neutral app access", () => NativeStripRenderSmoke.Run());
 int failures = 0;
 foreach (var test in tests)

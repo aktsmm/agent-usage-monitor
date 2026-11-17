@@ -194,14 +194,8 @@ public partial class App : Application
     public void ApplyTheme()
     {
         bool dark = Settings.Theme == "Dark";
-        foreach (var (key, light, night) in new[]
-        {
-            ("BackgroundBrush", "#FFFFFF", "#292929"), ("SoftBrush", "#F5F5F5", "#2E2E2E"),
-            ("TextBrush", "#242424", "#DEDEDE"), ("MutedBrush", "#5C5C5C", "#B0B0B0"),
-            ("BorderBrush", "#DEDEDE", "#474747"), ("AccentBrush", "#B11F4B", "#FD8EA1"),
-            ("WarningBrush", "#B45309", "#FBBF24")
-        })
-            Resources[key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(dark ? night : light));
+        foreach (var entry in ThemePalette.Entries)
+            Resources[entry.Key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(dark ? entry.Dark : entry.Light));
     }
 
     protected override void OnExit(ExitEventArgs e)
