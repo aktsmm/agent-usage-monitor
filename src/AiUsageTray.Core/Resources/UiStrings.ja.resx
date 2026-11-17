@@ -184,7 +184,7 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="UpdateProfileBlocked" xml:space="preserve"><value>検証プロファイルではアプリのインストール更新を実行しません。
 更新確認のみ: {0}</value></data>
   <data name="ShowUsageStrip" xml:space="preserve"><value>小型表示を表示</value></data>
-  <data name="UsageStripNotes" xml:space="preserve"><value>タスクバーの上の小さなnative表示。ドラッグで位置調整、ダブルクリックで利用状況を開きます。Copilot月間・Codex/Claude週間。表示%は残量でなく使用率です。0%も取得済みの値（表示時に丸められる場合あり）で、未取得は取得待ち、古い値は別途表示します。</value></data>
+  <data name="UsageStripNotes" xml:space="preserve"><value>タスクバーの上の小さなnative表示。ドラッグで位置調整、ダブルクリックで利用状況を開きます。Copilot月間・Codex/Claude週間。表示%は残量でなく使用率です。上限なしの枠だけのアカウントは使用率が無いため、報告クレジットを67k・1.2Mのように短縮表示します（全桁はツールチップ）。0%も取得済みの値（表示時に丸められる場合あり）で、未取得は取得待ち、古い値は別途表示します。</value></data>
   <data name="UsageStripAmbiguous" xml:space="preserve"><value>複数の枠があります。履歴でアカウント・枠を確認してください。</value></data>
   <data name="MonthlyQuota" xml:space="preserve"><value>月間枠</value></data>
   <data name="WeeklyQuota" xml:space="preserve"><value>週間枠</value></data>
@@ -245,7 +245,7 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="ThresholdInput" xml:space="preserve"><value>指定しきい値（%・カンマ区切り / 空欄で無効）</value></data>
   <data name="NotificationNotes" xml:space="preserve"><value>固定配分。未使用分の繰り越し・残量による再配分はしません。
 日付は日本時間、週は月曜開始。記録がない分は未計測。
-同じ通知はアカウント・枠・期間・ルールごとに一度です。</value></data>
+同じ通知はアカウント・枠・期間・ルールごとに一度です。上限なしの枠は使用率でなく、報告クレジット（AIC）の刻みで通知します。</value></data>
   <data name="ConnectionIntro" xml:space="preserve"><value>公式CLIの現在のログインを利用
 初回に確認できたサービスは自動設定して取得を開始します。
 保存後は別アカウントへ勝手に切り替えません。</value></data>

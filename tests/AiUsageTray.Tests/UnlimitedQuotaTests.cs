@@ -163,6 +163,7 @@ static class UnlimitedQuotaTests
             {
                 var locale = new UiLocalizer(language);
                 Check(locale.Text(UiText.AmountStepInput).Contains("AIC"), "settings label mentions AIC");
+                Check(locale.Text(UiText.UsageStripNotes).Contains("67k") && locale.Text(UiText.NotificationNotes).Contains("AIC"), "help texts explain unlimited quotas");
                 Check(locale.Format(UiText.NotificationAmount, "lab", "premium", 65_000m, locale.Unit(UsageUnit.Credits)).Contains("65,000"),
                     "notice shows the grouped amount");
             }
