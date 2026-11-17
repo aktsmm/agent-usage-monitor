@@ -148,6 +148,44 @@ static class UnlimitedQuotaTests
             Check(rejected, "negative step");
         });
 
+        test("history record ids stay tied to the indented serialization (changing JsonOptions would orphan stored history)", () =>
+        {
+            var from = DateTimeOffset.Parse("2026-11-01T00:00:00Z");
+            var account = AccountKey.FromIdentity(Provider.Copilot, "id-stability");
+            var snapshot = new QuotaSnapshot(new(account, "premium"), "enterprise", UsageSource.CopilotHttp, from.AddMinutes(5),
+                UsageUnit.Credits, 7, null, null, true, new(WindowKind.Monthly, from, from.AddMonths(1)), 7);
+            var delta = new UsageDelta(snapshot.Key, snapshot.PeriodId, from, from.AddMinutes(5), UsageUnit.Credits, 7, DeltaKind.Consumption);
+            // Windows-only product: the indented form uses the platform newline, like every id already stored.
+            Equal("B7D199DEFA9E4948108CB3697DA52F53B70E2189CF939AAC6DB39991BC27FF61", HistoryRecord.Create(snapshot, delta).Id);
+            Check(StateStore.JsonOptions.WriteIndented && !StateStore.CompactFileOptions.WriteIndented, "only the file options are compact");
+        });
+
+        test("state.json is written compact, still loads, and indented files from older versions still load", () =>
+        {
+            var folder = Path.Combine(Path.GetTempPath(), "ai-usage-tray-state-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(folder);
+            try
+            {
+                var path = Path.Combine(folder, "state.json");
+                var state = new UsageState();
+                var key = Unlimited("lab", "premium", 0).Key;
+                for (var i = 0; i < 300; i++)
+                    state.Deltas.Add(new(key, "period", now.AddMinutes(i), now.AddMinutes(i + 5), UsageUnit.Credits, 0, DeltaKind.Consumption));
+                state.Baselines.Add(Unlimited("lab", "premium", 0));
+                using (var store = new StateStore(path)) store.SaveAsync(state, default).GetAwaiter().GetResult();
+                var compact = File.ReadAllText(path);
+                Check(!compact.Contains("\n"), "no line breaks or indentation");
+                var indented = JsonSerializer.Serialize(state, StateStore.JsonOptions);
+                Check(compact.Length < indented.Length * 0.7, $"compact {compact.Length} vs indented {indented.Length}");
+                using (var store = new StateStore(path))
+                    Equal(300, store.LoadAsync(default).GetAwaiter().GetResult().Deltas.Count);
+                File.WriteAllText(path, indented);
+                using (var store = new StateStore(path))
+                    Equal(300, store.LoadAsync(default).GetAwaiter().GetResult().Deltas.Count);
+                Check(Directory.GetFiles(folder, "*.tmp").Length == 0, "no temporary file left");
+            }
+            finally { Directory.Delete(folder, true); }
+        });
         test("an early client disconnect is not reported as a host failure but other IO errors still are", () =>
         {
             Check(PipeProtocol.IsPeerDisconnect(new EndOfStreamException()), "end of stream");
