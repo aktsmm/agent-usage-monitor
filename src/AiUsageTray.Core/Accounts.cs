@@ -115,6 +115,22 @@ public static class AccountNames
         return Shorten(trimmed);
     }
 
+    /// <summary>
+    /// What to store for the alias after the user edited the row. An untouched field keeps the stored alias (the shown text can be a
+    /// suffixed or alias-derived name, never a reason to reset it); a changed field resets to automatic when empty or equal to the automatic name.
+    /// </summary>
+    public static string? AliasToStore(string? text, string? initialText, string? storedAlias, string autoName)
+    {
+        if (string.Equals(text, initialText, StringComparison.Ordinal)) return NormalizeAlias(storedAlias);
+        var normalized = NormalizeAlias(text);
+        return normalized is null || string.Equals(normalized, autoName, StringComparison.Ordinal) ? null : normalized;
+    }
+
+    /// <summary>Short display label of a service (for example cp for Copilot): the user choice, else the default service name.</summary>
+    public static string ServiceLabel(Provider provider, IReadOnlyDictionary<Provider, string>? labels) =>
+        labels is not null && labels.TryGetValue(provider, out var value) && NormalizeAlias(value) is { } label
+            ? label : provider.ToString();
+
     /// <summary>User alias first, then the automatic name. Accounts of one service that would show the same name get a short, stable suffix.</summary>
     public static IReadOnlyList<AccountEntry> Resolve(IEnumerable<AccountProfile> profiles,
         IReadOnlyDictionary<string, AccountPreference>? preferences)

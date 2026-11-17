@@ -143,13 +143,22 @@ static class LocalizationTests
             var copilot = Sample(Provider.Copilot, WindowKind.Monthly, 36);
             var codex = Sample(Provider.Codex, WindowKind.Weekly, 42);
             var shortQuota = Sample(Provider.Claude, WindowKind.Short, 99);
-            var values = UsageStrip.Values([copilot, codex, shortQuota], at, TimeSpan.FromMinutes(10));
-            Equal<decimal?>(36, values[0].Percentage);
-            Equal<decimal?>(42, values[1].Percentage);
-            Equal<decimal?>(null, values[2].Percentage);
-            True(UsageStrip.Values([copilot], at.AddHours(1), TimeSpan.FromMinutes(10))[0].Stale);
+            var settings = new DesktopSettings
+            {
+                CopilotEnabled = true, GithubLogin = "synthetic", GithubPinnedAccount = copilot.Key.Account.Id,
+                CodexEnabled = true, CodexEmail = "synthetic@example.test", CodexPinnedAccount = codex.Key.Account.Id,
+                ClaudeEnabled = true, ClaudeAccountLabel = "synthetic"
+            };
+            var age = TimeSpan.FromMinutes(10);
+            var values = UsageStrip.ValuesByAccount(settings.Accounts(), [copilot, codex, shortQuota], at, age);
+            Equal<decimal?>(36, values.Single(v => v.Provider == Provider.Copilot).Percentage);
+            Equal<decimal?>(42, values.Single(v => v.Provider == Provider.Codex).Percentage);
+            Equal<decimal?>(null, values.Single(v => v.Provider == Provider.Claude).Percentage);
+            True(UsageStrip.ValuesByAccount(settings.Accounts(), [copilot], at.AddHours(1), age)
+                .Single(v => v.Provider == Provider.Copilot).Stale);
             var other = copilot with { Key = new(copilot.Key.Account, "other quota") };
-            var ambiguous = UsageStrip.Values([copilot, other], at, TimeSpan.FromMinutes(10))[0];
+            var ambiguous = UsageStrip.ValuesByAccount(settings.Accounts(), [copilot, other], at, age)
+                .Single(v => v.Provider == Provider.Copilot);
             True(ambiguous.Ambiguous && ambiguous.Percentage is null);
         });
         Test("usage strip geometry clamps saved off-screen coordinates inside work area", () =>

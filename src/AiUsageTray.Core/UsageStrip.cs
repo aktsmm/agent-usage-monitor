@@ -2,9 +2,6 @@ namespace AiUsageTray.Core;
 
 public sealed record UsageStripPosition(int X, int Y);
 public sealed record StripArea(int Left, int Top, int Right, int Bottom);
-public sealed record UsageStripValue(Provider Provider, WindowKind Window, decimal? Percentage,
-    DateTimeOffset? ObservedAt, bool Stale, bool Ambiguous);
-
 public sealed record AccountStripValue(string ProfileId, Provider Provider, string Name, WindowKind Window,
     decimal? Percentage, DateTimeOffset? ObservedAt, bool Stale, bool Ambiguous,
     decimal? Amount = null, UsageUnit Unit = UsageUnit.Unknown, bool Unlimited = false);
@@ -50,17 +47,6 @@ public static class UsageStrip
                 unlimited?.Used, unlimited?.Unit ?? UsageUnit.Unknown, unlimited is not null);
         }).ToArray();
     }
-
-    public static IReadOnlyList<UsageStripValue> Values(IEnumerable<QuotaSnapshot> snapshots,
-        DateTimeOffset now, TimeSpan maximumAge) => Enum.GetValues<Provider>().Select(provider =>
-    {
-        var window = provider == Provider.Copilot ? WindowKind.Monthly : WindowKind.Weekly;
-        var candidates = snapshots.Where(s => s.Key.Account.Provider == provider &&
-            s.Window.Kind == window && !s.Unlimited).ToArray();
-        var snapshot = candidates.Length == 1 ? candidates[0] : null;
-        return new UsageStripValue(provider, window, snapshot?.UsedPercent, snapshot?.ObservedAt,
-            snapshot is not null && !snapshot.IsFresh(now, maximumAge), candidates.Length > 1);
-    }).ToArray();
 
     public static UsageStripPosition Clamp(UsageStripPosition requested, StripArea safe, int width, int height)
     {

@@ -27,7 +27,8 @@ public sealed record UsageStripPresentation(IReadOnlyList<UsageStripItem> Items,
              settings.Profiles().Count(p => p.Provider == v.Provider && p.Enabled) <= 1);
         foreach (var value in values)
         {
-            var label = values.Count(v => v.Provider == value.Provider) > 1 ? $"{value.Provider}·{value.Name}" : value.Provider.ToString();
+            var service = AccountNames.ServiceLabel(value.Provider, settings.ServiceLabels);
+            var label = values.Count(v => v.Provider == value.Provider) > 1 ? $"{service}·{value.Name}" : service;
             var status = value.Ambiguous ? locale.Text(UiText.UsageStripAmbiguous)
                 : Failed(value) ? locale.Text(UiText.UsageStripFetchFailed)
                 : value.Percentage is null && value.Amount is null ? locale.Text(UiText.UsageStripWaiting)

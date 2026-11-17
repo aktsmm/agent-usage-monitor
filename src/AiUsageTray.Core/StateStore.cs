@@ -14,6 +14,10 @@ public sealed class StateStore : IDisposable
         Converters = { new JsonStringEnumConverter() }
     };
 
+    // state.json is rewritten after every fetch and can hold tens of thousands of deltas, so it is written compact.
+    // Never reuse this for JsonOptions: history record ids hash the indented serialization of a delta.
+    public static readonly JsonSerializerOptions CompactFileOptions = new(JsonOptions) { WriteIndented = false };
+
     private readonly string path;
     private readonly FileStream lease;
 
@@ -51,10 +55,12 @@ public sealed class StateStore : IDisposable
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            // One buffer and one write: streaming through a 4 KB write-through FileStream issued thousands of small writes.
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(state, CompactFileOptions);
             await using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write,
                 FileShare.None, 4096, FileOptions.WriteThrough))
             {
-                await JsonSerializer.SerializeAsync(file, state, JsonOptions, cancellationToken);
+                await file.WriteAsync(bytes, cancellationToken);
                 await file.FlushAsync(cancellationToken);
                 file.Flush(flushToDisk: true);
             }
