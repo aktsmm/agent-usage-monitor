@@ -18,7 +18,7 @@ public enum HostEvent
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<HostShutdownReason>))]
-public enum HostShutdownReason { None, TrayMenu, WindowClose, Update, InitializationFailed }
+public enum HostShutdownReason { None, TrayMenu, WindowClose, Update, InitializationFailed, ProfileInUse }
 
 public sealed record HostRunRecord(DateTimeOffset At, Guid RunId, int Pid, string Version,
     HostEvent Event, HostShutdownReason Reason, int? ExitCode, string? ExceptionType, string[]? Frames);

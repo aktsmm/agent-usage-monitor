@@ -154,6 +154,11 @@ public sealed class TrayHost
             if (!args.Contains("--profile") && settings.AutoUpdateEnabled)
                 CheckUpdates(automatic: true);
         }
+        catch (StateStoreInUseException) when (args.Contains("--background"))
+        {
+            Console.Error.WriteLine("host_profile_in_use");
+            await ExitAsync(reason: HostShutdownReason.ProfileInUse);
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or UsageException or Win32Exception)
         {
             RecordFatal(ex);
