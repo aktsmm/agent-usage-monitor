@@ -12,9 +12,10 @@ SHA256SUMSで資産の整合性を確認し、Windowsの保護機能を有効な
 
 ## 検証と限界
 
-Release buildは警告0・エラー0、Console runnerは173/173成功です（短縮表記の境界、ストリップ、通知の重複抑止・上限・無効化、旧設定の読み込み、履歴、日英文言のテストを追加）。
+Release buildは警告0・エラー0、Console runnerは175/175成功です（短縮表記の境界、ストリップ、通知の重複抑止・上限・無効化、旧設定の読み込み、履歴、日英文言のテストを追加）。
 実機の画面（常駐ストリップと通知）での目視確認は、インストール後に行ってください。
 AICと円の対応はAPIからは分からないため、円換算はしません。
+0.2.11で保存した通知履歴には新しい通知種別が含まれるため、0.2.10以前へ戻す場合は`%LOCALAPPDATA%\AiUsageTray`の状態ファイルを退避してください。設定の刻みに0以下を入れた場合は、通知の数値エラーとして表示されます。
 実機で未確認: 2つ目の`CODEX_HOME`、Claudeのsnapshotとアカウントの紐づけ。
 
 ## English
@@ -26,7 +27,7 @@ Unlimited quotas notify every N reported credits (AIC; default 5,000, configurab
 Settings, also per quota); levels already reached on the first observation are sent as one notice,
 capped at 200 levels. Their consumption is recorded in the daily history in credits, with no
 guidance values invented. Also fixed: a client that disconnected early no longer leaves
-"ipc_failed:EndOfStreamException" in the window; other IPC errors are still shown. 173 console
+"ipc_failed:EndOfStreamException" in the window; other IPC errors are still shown. 175 console
 tests pass and the Release build has zero warnings or errors. Not verified on a real machine yet:
 the strip and notifications after install, a second `CODEX_HOME`, and Claude snapshot binding.
 No currency conversion is made. Binaries are unsigned; verify SHA256SUMS without disabling Windows protection.

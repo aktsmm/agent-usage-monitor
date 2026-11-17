@@ -561,7 +561,9 @@ public sealed class SettingsWindow : Window
             AmountStep = string.IsNullOrWhiteSpace(amountStepValue.Text) ? null : Parse(amountStepValue.Text),
             Thresholds = thresholds.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(Parse).ToArray()
         };
-        rule.Validate();
+        // Out-of-range values (for example a zero or negative step) get the localized number message, not a raw code.
+        try { rule.Validate(); }
+        catch (UsageException) { throw new UsageException(FailureKind.Schema, "settings_notification_number_invalid"); }
         if (selected is { } key) edited[key] = new(key, rule, bucketEnabled.IsChecked == true);
         else defaults = rule;
     }

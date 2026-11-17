@@ -126,6 +126,28 @@ static class UnlimitedQuotaTests
             Equal<decimal?>(null, day.Guidance);
         });
 
+        test("amount-step notices start again in a new quota period", () =>
+        {
+            var state = new UsageState();
+            UsageEngine.Apply(state, new FetchResult([Unlimited("lab", "premium", 6_000, now)], []), now);
+            var nextStart = end;
+            var nextEnd = end.AddMonths(1);
+            var december = now.AddDays(20);
+            var renewed = Unlimited("lab", "premium", 5_200, december) with { Window = new(WindowKind.Monthly, nextStart, nextEnd), CreditsUsed = 5_200 };
+            var notices = UsageEngine.Apply(state, new FetchResult([renewed], []), december);
+            Check(notices.Any(n => n.Reason == NotificationReason.AmountStep && n.CrossedLevels.SequenceEqual([5000m])),
+                "the new period notifies its own 5,000 step");
+        });
+
+        test("settings turn an invalid amount step into the localized number message", () =>
+        {
+            foreach (var language in new[] { DisplayLanguage.Japanese, DisplayLanguage.English })
+                Check(!new UiLocalizer(language).Error("settings_notification_number_invalid").Contains("Unknown"), "known code");
+            var rejected = false;
+            try { new NotificationRules { AmountStep = -5 }.Validate(); } catch (UsageException) { rejected = true; }
+            Check(rejected, "negative step");
+        });
+
         test("an early client disconnect is not reported as a host failure but other IO errors still are", () =>
         {
             Check(PipeProtocol.IsPeerDisconnect(new EndOfStreamException()), "end of stream");
