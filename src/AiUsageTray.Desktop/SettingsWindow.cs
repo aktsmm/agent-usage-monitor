@@ -27,6 +27,7 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox reset = Check("");
     private readonly CheckBox steps = Check("");
     private readonly TextBox stepValue = new();
+    private readonly TextBox amountStepValue = new();
     private readonly TextBox thresholds = new();
     private readonly CheckBox copilot = Check("");
     private readonly TextBox login = new();
@@ -197,6 +198,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(steps);
         panel.Children.Add(Label(UiText.StepInput));
         panel.Children.Add(stepValue);
+        AddField(panel, UiText.AmountStepInput, amountStepValue);
         panel.Children.Add(Label(UiText.ThresholdInput));
         panel.Children.Add(thresholds);
         panel.Children.Add(Label(UiText.NotificationNotes));
@@ -528,6 +530,7 @@ public sealed class SettingsWindow : Window
             daily.IsChecked = rule.DailyGuidance; weekly.IsChecked = rule.WeeklyGuidance; reset.IsChecked = rule.Reset;
             steps.IsChecked = rule.PercentageStep is not null; stepValue.Text = (rule.PercentageStep ?? 10).ToString(CultureInfo.InvariantCulture);
             thresholds.Text = string.Join(", ", rule.Thresholds.Select(x => x.ToString(CultureInfo.InvariantCulture)));
+            amountStepValue.Text = rule.AmountStep?.ToString(CultureInfo.InvariantCulture) ?? "";
             RenderAllocation();
             error.Text = "";
         }
@@ -555,6 +558,7 @@ public sealed class SettingsWindow : Window
         {
             DailyGuidance = daily.IsChecked == true, WeeklyGuidance = weekly.IsChecked == true,
             Reset = reset.IsChecked == true, PercentageStep = steps.IsChecked == true ? Parse(stepValue.Text) : null,
+            AmountStep = string.IsNullOrWhiteSpace(amountStepValue.Text) ? null : Parse(amountStepValue.Text),
             Thresholds = thresholds.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(Parse).ToArray()
         };
         rule.Validate();

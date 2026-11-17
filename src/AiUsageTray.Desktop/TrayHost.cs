@@ -513,6 +513,8 @@ public sealed class TrayHost
                 }
                 catch (OperationCanceledException) when (!stopping.IsCancellationRequested)
                 { lastError = "ipc_timeout"; }
+                // A client that closed its end early (for example a window closing mid-request) is not a host failure.
+                catch (Exception ex) when (PipeProtocol.IsPeerDisconnect(ex)) { }
                 catch (Exception ex) when (ex is IOException or JsonException or UsageException)
                 {
                     // No token or request contents are logged; the next UI connection can recover.
@@ -744,6 +746,9 @@ public sealed class TrayHost
             Locale.Text(n.Reason == NotificationReason.DailyGuidance ? UiText.Daily : UiText.Weekly),
             Locale.Coverage(n.Coverage ?? Coverage.Partial)),
         NotificationReason.Reset => Locale.Format(UiText.NotificationReset, NoticeSubject(n), n.Key.Bucket),
+        NotificationReason.AmountStep => Locale.Format(UiText.NotificationAmount, NoticeSubject(n), n.Key.Bucket,
+            n.CrossedLevels.LastOrDefault(),
+            Locale.Unit(state.Latest.FirstOrDefault(s => s.Key == n.Key)?.Unit ?? UsageUnit.Credits)),
         _ => Locale.Format(UiText.NotificationUsage, NoticeSubject(n), n.Key.Bucket,
             string.Join(" / ", n.CrossedLevels.Select(level => level.ToString("0.##", Locale.Culture) + "%")))
     };

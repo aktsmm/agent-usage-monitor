@@ -25,6 +25,10 @@ public static class PipeProtocol
 {
     public const int MaximumMessageBytes = 1_048_576;
 
+    // ERROR_BROKEN_PIPE (109) and ERROR_NO_DATA (232): the peer already closed its end of the pipe.
+    public static bool IsPeerDisconnect(Exception exception) =>
+        exception is EndOfStreamException || exception is IOException io && (io.HResult & 0xFFFF) is 109 or 232;
+
     public static async Task WriteAsync<T>(Stream stream, T value, CancellationToken cancellationToken)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(value, StateStore.JsonOptions);

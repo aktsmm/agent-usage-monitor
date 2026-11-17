@@ -30,13 +30,19 @@ public sealed record UsageStripPresentation(IReadOnlyList<UsageStripItem> Items,
             var label = values.Count(v => v.Provider == value.Provider) > 1 ? $"{value.Provider}·{value.Name}" : value.Provider.ToString();
             var status = value.Ambiguous ? locale.Text(UiText.UsageStripAmbiguous)
                 : Failed(value) ? locale.Text(UiText.UsageStripFetchFailed)
-                : value.Percentage is null ? locale.Text(UiText.UsageStripWaiting)
+                : value.Percentage is null && value.Amount is null ? locale.Text(UiText.UsageStripWaiting)
                 : value.Stale ? locale.Text(UiText.Stale) : locale.Text(UiText.UsageStripFresh);
             if (value.Percentage is { } percent)
             {
                 var text = $"{label} {percent.ToString("0.#", locale.Culture)}%";
                 items.Add(new(text, value.Stale || Failed(value)));
                 tips.Add(text + " · " + status);
+            }
+            else if (value.Amount is { } amount)
+            {
+                // Narrow surface: compact number only; the full amount and unit are in the tooltip.
+                items.Add(new($"{label} {AmountFormat.Compact(amount)}", value.Stale || Failed(value)));
+                tips.Add(label + " · " + locale.Format(UiText.UnlimitedUsage, amount, locale.Unit(value.Unit)) + " · " + status);
             }
             else tips.Add(label + " · " + status);
             if (value.ObservedAt is { } observed)

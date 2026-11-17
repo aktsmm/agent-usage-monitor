@@ -333,6 +333,8 @@ Shown after quota total and period are available.</value></data>
   <data name="VscodeBridgeNotInstalled" xml:space="preserve"><value>No VS Code connection data exists yet. Install the companion extension (integrations/vscode), then run “Agent Usage Monitor: Connect GitHub accounts” in VS Code.</value></data>
   <data name="AccountNoData" xml:space="preserve"><value>No usage value yet. It appears after the first successful fetch; if it stays empty, check that the account is still signed in.</value></data>
   <data name="UnlimitedUsage" xml:space="preserve"><value>Unlimited · usage this period {0:#,0.##} {1}</value></data>
+  <data name="NotificationAmount" xml:space="preserve"><value>{0} · {1}: reported usage reached {2:#,0.##} {3}.</value></data>
+  <data name="AmountStepInput" xml:space="preserve"><value>Step for unlimited quotas (reported credits / AIC; leave empty to disable)</value></data>
   <data name="AccountAlreadyConfigured" xml:space="preserve"><value>This account is already configured.</value></data>
   <data name="FindVscodeAccounts" xml:space="preserve"><value>Find VS Code accounts</value></data>
   <data name="VscodeBridgeHelp" xml:space="preserve"><value>Run “Agent Usage Monitor: Connect GitHub accounts” in VS Code first. The extension stores only account identity and quota values locally; tokens stay in VS Code.</value></data>
