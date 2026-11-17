@@ -170,6 +170,7 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="NotificationReset" xml:space="preserve"><value>{0} · {1}: 契約枠のリセットを確認しました。</value></data>
   <data name="UpdateTitle" xml:space="preserve"><value>アプリ更新</value></data>
   <data name="UpdateChecking" xml:space="preserve"><value>アプリの安定版を確認しています。</value></data>
+  <data name="UpdateInProgress" xml:space="preserve"><value>更新確認はすでに実行中です。ダイアログが見えない場合は、他のウィンドウの後ろやタスクバーを確認してください。</value></data>
   <data name="UpdateAvailable" xml:space="preserve"><value>バージョン {0} を確認しました。</value></data>
   <data name="UpdateCurrent" xml:space="preserve"><value>現在のバージョン {0}。新しい安定版はありません。</value></data>
   <data name="UpdateUnavailable" xml:space="preserve"><value>公開済みの安定版を確認できませんでした。リリースなし／アクセス不可の可能性があります。</value></data>

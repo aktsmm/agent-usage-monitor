@@ -170,6 +170,7 @@ Copy → verify hashes and content → switch. Keep the source; never overwrite 
   <data name="NotificationReset" xml:space="preserve"><value>{0} · {1}: quota reset confirmed.</value></data>
   <data name="UpdateTitle" xml:space="preserve"><value>App update</value></data>
   <data name="UpdateChecking" xml:space="preserve"><value>Checking the latest stable app release.</value></data>
+  <data name="UpdateInProgress" xml:space="preserve"><value>An update check is already running. If no dialog is visible, look for it behind other windows or on the taskbar.</value></data>
   <data name="UpdateAvailable" xml:space="preserve"><value>Version {0} is available.</value></data>
   <data name="UpdateCurrent" xml:space="preserve"><value>Current version {0}. No newer stable release.</value></data>
   <data name="UpdateUnavailable" xml:space="preserve"><value>No published stable release could be verified. It may be absent or inaccessible.</value></data>

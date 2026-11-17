@@ -6,6 +6,15 @@ static class HostLifetimeTests
 {
     public static void Register(Action<string, Action> test)
     {
+        test("native dialogs from the windowless update helper are forced to the foreground", () =>
+        {
+            foreach (var flags in new[] { NativeTray.ErrorDialog, NativeTray.InformationDialog, NativeTray.ConfirmDialog })
+                if ((flags & 0x10000) == 0 || (flags & 0x40000) == 0)
+                    throw new InvalidOperationException("dialog_not_foreground");
+            if ((NativeTray.ConfirmDialog & 0xF) != 4 || (NativeTray.ConfirmDialog & 0xF0) != 32)
+                throw new InvalidOperationException("confirm_style_changed");
+        });
+
         test("state lease contention is distinct from other storage failures and stale lock files", () =>
         {
             WithProfile(profile =>
