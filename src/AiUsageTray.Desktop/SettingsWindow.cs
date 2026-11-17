@@ -67,7 +67,7 @@ public sealed class SettingsWindow : Window
     private QuotaKey? selected;
     private bool changing;
     private int selectedIndex;
-    private sealed record AccountRow(TextBox Alias, CheckBox Visible, CheckBox InStrip, string InitialText, string? StoredAlias, string AutoName);
+    private sealed record AccountRow(TextBox Alias, CheckBox Visible, CheckBox InStrip, string InitialText, string? StoredAlias);
 
     public SettingsWindow(App app, bool showAppearance = false)
     {
@@ -376,6 +376,15 @@ public sealed class SettingsWindow : Window
 
     private void LoadAccountRows(DesktopSettings settings)
     {
+        // Rebuilding rows is not an edit: it must not raise the unsaved-changes flag.
+        bool previous = changing;
+        changing = true;
+        try { RebuildAccountRows(settings); }
+        finally { changing = previous; }
+    }
+
+    private void RebuildAccountRows(DesktopSettings settings)
+    {
         foreach (var (service, box) in serviceLabelBoxes)
             box.Text = settings.ServiceLabels.GetValueOrDefault(service) ?? "";
         accountRows.Children.Clear();
@@ -434,7 +443,7 @@ public sealed class SettingsWindow : Window
             AutomationProperties.SetName(inStrip, AutomationText.ForButtonLike(locale.Text(UiText.AccountStrip) + ": " + rowName));
             Grid.SetColumn(inStrip, 4);
             row.Children.Add(inStrip);
-            accountEditors[profile.Id] = new(alias, visible, inStrip, alias.Text, preference.Alias, AccountNames.Auto(profile));
+            accountEditors[profile.Id] = new(alias, visible, inStrip, alias.Text, preference.Alias);
             accountRows.Children.Add(row);
             if (!entry.IsPrimary)
             {
@@ -458,17 +467,11 @@ public sealed class SettingsWindow : Window
 
     private DesktopSettings ReadAccountPreferences(DesktopSettings settings)
     {
-        foreach (var (service, box) in serviceLabelBoxes)
-            settings = settings.WithServiceLabel(service, box.Text);
-        foreach (var entry in settings.Accounts())
-            if (accountEditors.TryGetValue(entry.Profile.Id, out var editor))
-                settings = settings.WithPreference(entry.Profile.Id, new AccountPreference
-                {
-                    Alias = AccountNames.AliasToStore(editor.Alias.Text, editor.InitialText, editor.StoredAlias, editor.AutoName),
-                    Visible = editor.Visible.IsChecked == true,
-                    ShowInStrip = editor.InStrip.IsChecked == true
-                });
-        return settings;
+        return settings.ApplyAccountEdits(
+            serviceLabelBoxes.ToDictionary(pair => pair.Key, pair => pair.Value.Text),
+            accountEditors.ToDictionary(pair => pair.Key, pair => new DesktopSettings.AccountEdit(
+                pair.Value.Alias.Text, pair.Value.InitialText, pair.Value.StoredAlias,
+                pair.Value.Visible.IsChecked == true, pair.Value.InStrip.IsChecked == true)));
     }
 
     private void AddAccount()

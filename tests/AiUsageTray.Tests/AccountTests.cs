@@ -54,24 +54,33 @@ static class AccountTests
             Check(AccountNames.ServiceLabel(Provider.Codex, new Dictionary<Provider, string> { [Provider.Copilot] = "cp" }) == "Codex", "other service unchanged");
             Check(AccountNames.ServiceLabel(Provider.Claude, new Dictionary<Provider, string> { [Provider.Claude] = "  " }) == "Claude", "blank means default");
         });
-        test("a row saved twice without edits keeps its alias (settings screen round trip)", () =>
+        test("a settings screen saved repeatedly without edits keeps aliases and short names through the settings file", () =>
         {
-            // Simulates the settings screen: open with the stored alias, press save twice without editing, across a JSON round trip.
-            var s = baseSettings.AddAccount(Extra("x1", "carol")).WithPreference("x1", new() { Alias = "cp1", ShowInStrip = true });
-            for (var round = 0; round < 3; round++)
+            // Mirrors the screen: rows open with the stored alias (or the display name), the user presses save without editing.
+            var path = Path.Combine(Path.GetTempPath(), "ai-usage-tray-alias-" + Guid.NewGuid().ToString("N") + ".json");
+            try
             {
-                s = JsonSerializer.Deserialize<DesktopSettings>(JsonSerializer.Serialize(s, StateStore.JsonOptions), StateStore.JsonOptions)!;
-                foreach (var entry in s.Accounts())
+                var s = baseSettings.AddAccount(Extra("x1", "carol")).AddAccount(Extra("x2", "carol-two"))
+                    .WithPreference("x1", new() { Alias = "cp1", ShowInStrip = true })
+                    .WithServiceLabel(Provider.Copilot, "cp");
+                for (var round = 0; round < 3; round++)
                 {
-                    var shown = entry.Preference.Alias ?? entry.Name;
-                    s = s.WithPreference(entry.Profile.Id, entry.Preference with
-                    { Alias = AccountNames.AliasToStore(shown, shown, entry.Preference.Alias, AccountNames.Auto(entry.Profile)) });
+                    s.SaveAsync(path, default).GetAwaiter().GetResult();
+                    s = DesktopSettings.LoadAsync(path, default).GetAwaiter().GetResult();
+                    var edits = s.Accounts().ToDictionary(e => e.Profile.Id, e =>
+                    {
+                        var shown = e.Preference.Alias ?? e.Name;
+                        return new DesktopSettings.AccountEdit(shown, shown, e.Preference.Alias, e.Preference.Visible, e.Preference.ShowInStrip);
+                    });
+                    s = s.ApplyAccountEdits(s.ServiceLabels, edits);
                 }
+                Check(s.AccountPrefs["x1"].Alias == "cp1", "alias survived three saves");
+                Check(!s.AccountPrefs.ContainsKey("x2") || s.AccountPrefs["x2"].Alias is null, "an account without alias stays automatic");
+                Check(s.ServiceLabels.Count == 1 && s.ServiceLabels[Provider.Copilot] == "cp", "service short name survived the file round trip");
+                Check(s.Accounts().Single(e => e.Profile.Id == "x1").Name == "cp1", "display name still the alias");
             }
-            Check(s.AccountPrefs["x1"].Alias == "cp1", "alias survived three saves");
-            Check(s.Accounts().Single(e => e.Profile.Id == "x1").Name == "cp1", "display name still the alias");
-        });
-        test("service short names persist, validate, stay optional in old settings and shape the strip text", () =>
+            finally { File.Delete(path); File.Delete(path + ".tmp"); }
+        });        test("service short names persist, validate, stay optional in old settings and shape the strip text", () =>
         {
             var s = baseSettings.WithServiceLabel(Provider.Copilot, " cp ").WithServiceLabel(Provider.Codex, "cx").WithServiceLabel(Provider.Codex, "");
             Check(s.ServiceLabels.Count == 1 && s.ServiceLabels[Provider.Copilot] == "cp", "stored trimmed; empty removes");

@@ -46,6 +46,26 @@ public sealed record DesktopSettings
     // Short service names for the strip (for example cp for Copilot); an empty or missing entry keeps the default name.
     public Dictionary<Provider, string> ServiceLabels { get; init; } = [];
 
+    /// <summary>What the settings screen knows about one account row when it is saved.</summary>
+    public sealed record AccountEdit(string Text, string InitialText, string? StoredAlias, bool Visible, bool ShowInStrip);
+
+    /// <summary>Applies the settings screen state (service short names and per-account rows) without any UI dependency.</summary>
+    public DesktopSettings ApplyAccountEdits(IReadOnlyDictionary<Provider, string> serviceLabels,
+        IReadOnlyDictionary<string, AccountEdit> edits)
+    {
+        var settings = this;
+        foreach (var (service, label) in serviceLabels) settings = settings.WithServiceLabel(service, label);
+        foreach (var entry in settings.Accounts())
+            if (edits.TryGetValue(entry.Profile.Id, out var edit))
+                settings = settings.WithPreference(entry.Profile.Id, new AccountPreference
+                {
+                    Alias = AccountNames.AliasToStore(edit.Text, edit.InitialText, edit.StoredAlias, AccountNames.Auto(entry.Profile)),
+                    Visible = edit.Visible,
+                    ShowInStrip = edit.ShowInStrip
+                });
+        return settings;
+    }
+
     public DesktopSettings WithServiceLabel(Provider provider, string? label)
     {
         var labels = new Dictionary<Provider, string>(ServiceLabels ?? []);
