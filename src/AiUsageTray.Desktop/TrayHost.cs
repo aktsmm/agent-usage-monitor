@@ -232,7 +232,12 @@ public sealed class TrayHost
 
     private void CheckUpdates(bool automatic)
     {
-        if (exiting || updateProcess is { HasExited: false }) return;
+        if (exiting) return;
+        if (updateProcess is { HasExited: false })
+        {
+            if (!automatic) tray.Notify(Locale.Text(UiText.AgentUsage), Locale.Text(UiText.UpdateInProgress));
+            return;
+        }
         if (automatic && (!settings.AutoUpdateEnabled || update.RetryAt > DateTimeOffset.UtcNow)) return;
         if (args.Contains("--profile"))
         {

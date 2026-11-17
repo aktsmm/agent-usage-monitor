@@ -36,7 +36,7 @@ public enum UiText
     InitializationFailed, PanelStartFailed, CommunicationFailed, CommunicationStopped,
     CommunicationTimeout, RefreshFailed, SaveFailed, AuthenticationRequired, AccountMismatch,
     MissingCredential, ProviderError, NotificationUsage, NotificationGuidance, NotificationReset,
-    UpdateTitle, UpdateChecking, UpdateAvailable, UpdateCurrent, UpdateUnavailable,
+    UpdateTitle, UpdateChecking, UpdateInProgress, UpdateAvailable, UpdateCurrent, UpdateUnavailable,
     UpdateDownloadConfirm, UpdateDownloading, UpdateDeferred, UpdateApplyConfirm,
     UpdateRestart, UpdateFailed, PortableUpdate, UpdateProfileBlocked,
     ShowUsageStrip, UsageStripNotes, UsageStripAmbiguous, MonthlyQuota, WeeklyQuota, ShortQuota,
