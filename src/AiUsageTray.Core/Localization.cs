@@ -23,7 +23,7 @@ public enum UiText
     MonthInvalid, RangeMissing, CatalogMissing, HistoryResponseMissing, FolderRequired,
     PreviewRequired, PreviewMissing, FolderNotWritable, MonthRequired, OpenLocationRequired,
     OperationNotAllowed, FileMissing, FolderMissing, ExplorerFailed,
-    InvalidHistoryData, HistoryTooLarge, WriterMismatch, ExistingHistoryUnavailable,
+    InvalidHistoryData, HistoryTooLarge, HistoryResponseTooLarge, WriterMismatch, ExistingHistoryUnavailable,
     MigrationOverlap, MigrationConflict, MigrationStale, MigrationExtraFiles, MigrationSpace,
     MigrationNotReady, MigrationVerifyFailed, CurrentMonthArchive, PendingArchive,
     ArchivedMonthSealed, NoMonthRecorded, NoRawRecorded, ArchiveInvalid,
@@ -65,7 +65,10 @@ public enum UiText
     AccountLocalStorageNote, AccountSettingsInvalid, FindGithubAccounts, GithubCandidates,
     GithubActive, GithubNoNewAccounts, AccountAlreadyConfigured, FindVscodeAccounts,
     VscodeBridgeHelp, VscodeNoNewAccounts, DetectionConditions, VscodeBridgeNotInstalled, AccountNoData,
-    UnlimitedUsage, NotificationAmount, AmountStepInput, ServiceLabelInput
+    UnlimitedUsage, NotificationAmount, AmountStepInput, ServiceLabelInput,
+    HistoryOverview, HistoryOverviewHint, HistoryOverviewEmpty, HistoryOverviewMeasured,
+    HistoryOverviewUnmeasured, HistoryOverviewPartial, HistoryGraphZero, HistoryGraphNoData,
+    HistoryOverviewChanged, HistoryGraphGuidanceAbove, HistoryPeriodDenominator, HistoryOverviewFallback, HistoryShowGraph
 }
 
 public sealed class UiLocalizer
@@ -136,6 +139,7 @@ public sealed class UiLocalizer
         var key = normalized switch
         {
             "history_file_too_large" => UiText.HistoryTooLarge,
+            "ipc_message_too_large" => UiText.HistoryResponseTooLarge,
             "history_version_or_writer_mismatch" or "history_journal_writer_mismatch" => UiText.WriterMismatch,
             "history_existing_folder_unavailable" => UiText.ExistingHistoryUnavailable,
             "history_migration_overlapping_folders" => UiText.MigrationOverlap,
@@ -155,6 +159,7 @@ public sealed class UiLocalizer
             "history_range_missing" => UiText.RangeMissing,
             "history_catalog_missing" => UiText.CatalogMissing,
             "history_response_missing" => UiText.HistoryResponseMissing,
+            "history_overview_changed" => UiText.HistoryOverviewChanged,
             "history_folder_required" => UiText.FolderRequired,
             "history_preview_required" => UiText.PreviewRequired,
             "history_preview_missing" => UiText.PreviewMissing,

@@ -55,6 +55,269 @@ static class HistoryTests
             Equal(Coverage.CompleteToObservation, result.Coverage);
             Equal<decimal?>(100m / 31, result.Guidance);
         });
+        TestFiles("history overview keeps accounts, units, periods, zero and missing days separate", async f =>
+        {
+            var window = new QuotaWindow(WindowKind.Monthly, At.AddDays(-20), At.AddDays(40));
+            var first = Snapshot(At.AddMinutes(5)) with { Window = window };
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5), 2, snapshot: first), Gap, default);
+            var zero = first with { Key = new(AccountKey.FromIdentity(Provider.Copilot, "other-account"), "other") };
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5), 0, snapshot: zero), Gap, default);
+            var changed = first with { Unit = UsageUnit.Credits, Total = 200, ObservedAt = At.AddMinutes(10) };
+            await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10), 3, snapshot: changed), Gap, default);
+            var page = await f.Store.OverviewAsync(Day, Day.AddDays(1), 0, null, default);
+            Equal(3, page.Items.Count);
+            Equal<decimal?>(2, page.Items.Single(i => i.Key == Key && i.Unit == UsageUnit.PercentagePoints).Observed);
+            Equal<decimal?>(3, page.Items.Single(i => i.Unit == UsageUnit.Credits).Observed);
+            var zeroItem = page.Items.Single(i => i.Key == zero.Key);
+            Equal<decimal?>(0, zeroItem.Observed);
+            Equal(1, zeroItem.UnmeasuredDays);
+            var empty = await f.Store.OverviewAsync(Day.AddDays(3), Day.AddDays(3), 0, null, default);
+            True(empty.Items.All(i => i.Observed is null));
+        });
+        TestFiles("history overview paging stays consistent and rejects a replaced snapshot", async f =>
+        {
+            for (int i = 0; i < 41; i++)
+            {
+                var s = Snapshot(At.AddMinutes(5)) with
+                {
+                    Key = new(AccountKey.FromIdentity(Provider.Copilot, "page-" + i), "monthly")
+                };
+                await f.Store.AppendAsync(Record(At, At.AddMinutes(5), 1, snapshot: s), Gap, default);
+            }
+            var first = await f.Store.OverviewAsync(Day, Day, 0, null, default);
+            Equal(40, first.Items.Count);
+            Equal<int?>(40, first.NextOffset);
+            using (var frame = new MemoryStream())
+            {
+                await PipeProtocol.WriteAsync(frame, new DesktopResponse(true,
+                    History: new HistoryResponse(true, Overview: first)), default);
+                True(frame.Length < PipeProtocol.MaximumMessageBytes);
+                frame.Position = 0;
+                var decoded = await PipeProtocol.ReadAsync<DesktopResponse>(frame, default);
+                Equal(40, decoded.History!.Overview!.Items.Count);
+                Equal(first.Snapshot, decoded.History.Overview.Snapshot);
+            }
+            var last = await f.Store.OverviewAsync(Day, Day, 40, first.Snapshot, default);
+            Equal(1, last.Items.Count);
+            Equal<int?>(null, last.NextOffset);
+            var extra = Snapshot(At.AddMinutes(5)) with
+            {
+                Key = new(AccountKey.FromIdentity(Provider.Codex, "page-extra"), "monthly")
+            };
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5), 1, snapshot: extra), Gap, default);
+            var preserved = await f.Store.OverviewAsync(Day, Day, 40, first.Snapshot, default);
+            Equal(1, preserved.Items.Count);
+            await f.Store.OverviewAsync(Day, Day, 0, null, default);
+            await Reject(() => f.Store.OverviewAsync(Day, Day, 40, first.Snapshot, default));
+        });
+        TestFiles("history overview does not invent day boundary usage across months", async f =>
+        {
+            var midnight = new DateTimeOffset(2026, 11, 1, 0, 0, 0, JapaneseCalendar.Offset);
+            var s = Snapshot(midnight.AddMinutes(5)) with
+            {
+                Window = new(WindowKind.Monthly, midnight.AddDays(-20), midnight.AddDays(20))
+            };
+            await f.Store.AppendAsync(Record(midnight.AddMinutes(-5), midnight.AddMinutes(5), 12, snapshot: s),
+                Gap, default);
+            var page = await f.Store.OverviewAsync(new DateOnly(2026, 10, 31), new DateOnly(2026, 11, 1), 0, null, default);
+            var item = page.Items.Single();
+            Equal<decimal?>(null, item.Observed);
+            Equal(2, item.UnmeasuredDays);
+        });
+        TestFiles("history overview does not mark future days as missing", async f =>
+        {
+            var today = JapaneseCalendar.Date(DateTimeOffset.UtcNow);
+            var midnight = new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue), JapaneseCalendar.Offset);
+            var snapshot = Snapshot(midnight.AddMinutes(5)) with
+            {
+                Window = new(WindowKind.Monthly, midnight.AddDays(-1), midnight.AddDays(20))
+            };
+            await f.Store.AppendAsync(Record(midnight, midnight.AddMinutes(5), 1, snapshot: snapshot), Gap, default);
+            var page = await f.Store.OverviewAsync(today.AddDays(-1), today.AddDays(10), 0, null, default);
+            Equal(1, page.Items.Single().UnmeasuredDays);
+        });
+        TestFiles("history definition changes keep amounts separate and coverage conservative", async f =>
+        {
+            var window = new QuotaWindow(WindowKind.Monthly, At.AddDays(-1), At.AddDays(4));
+            var first = Snapshot(At.AddMinutes(5)) with { Window = window, Plan = "first" };
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5), 2, snapshot: first), Gap, default);
+            var changedAt = At.AddDays(2);
+            var next = first with { Plan = "second", ObservedAt = changedAt };
+            await f.Store.AppendAsync(Record(changedAt, changedAt, null, DeltaKind.DefinitionChanged, next), Gap, default);
+            await f.Store.AppendAsync(Record(changedAt, changedAt.AddMinutes(5), 3,
+                snapshot: next with { ObservedAt = changedAt.AddMinutes(5) }), Gap, default);
+            var page = await f.Store.OverviewAsync(Day, Day.AddDays(2), 0, null, default);
+            var earlier = page.Items.Single(item => item.Plan == "first");
+            var later = page.Items.Single(item => item.Plan == "second");
+            Equal<decimal?>(2, earlier.Observed);
+            Equal<decimal?>(3, later.Observed);
+            True(earlier.UnmeasuredDays > 0 && later.UnmeasuredDays > 0);
+            True(later.PartialDays > 0);
+        });
+        TestFiles("history query handles the last representable month", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var first = new DateOnly(9999, 12, 1);
+            var last = DateOnly.MaxValue;
+            Equal(31, (await f.Store.QueryAsync(new(first, last, Key), default)).Count);
+            var overview = await f.Store.OverviewAsync(first, last, 0, null, default);
+            Equal<decimal?>(null, overview.Items.Single().Observed);
+        });
+        TestFiles("history detail handles many period definitions within IPC limits", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var source = Enumerable.Range(0, 1500).Select(i => new DailyHistorySlice(
+                Day, Key, $"period-{i:D4}", new string('p', 700), UsageUnit.PercentagePoints,
+                Snapshot(At).Window, i, null, Coverage.Partial, At, At.AddMinutes(5), [])).ToList();
+            await File.WriteAllTextAsync(f.Store.SummaryPath(Day),
+                JsonSerializer.Serialize(new HistoryMonth(1, f.Writer, DailyHistory.Month(Day), source),
+                    StateStore.JsonOptions));
+            var query = new HistoryQuery(Day, Day.AddDays(1), Key);
+            var result = await f.Store.QueryAsync(query, default);
+            using (var oversized = new MemoryStream())
+            {
+                var rejected = false;
+                try
+                {
+                    await PipeProtocol.WriteAsync(oversized, new DesktopResponse(true,
+                        History: new HistoryResponse(true, Days: result.ToList())), default);
+                }
+                catch (UsageException ex) when (ex.SafeCode == "ipc_message_too_large") { rejected = true; }
+                True(rejected);
+            }
+            var received = new List<HistoryDay>();
+            string? snapshot = null;
+            int offset = 0, pageCount = 0;
+            do
+            {
+                var page = await f.Store.QueryPageAsync(query, offset, snapshot, default);
+                using var frame = new MemoryStream();
+                await PipeProtocol.WriteAsync(frame, new DesktopResponse(true,
+                    History: new HistoryResponse(true, DaysPage: page)), default);
+                True(frame.Length < PipeProtocol.MaximumMessageBytes);
+                frame.Position = 0;
+                var decoded = (await PipeProtocol.ReadAsync<DesktopResponse>(frame, default)).History!.DaysPage!;
+                if (snapshot is not null) Equal(snapshot, decoded.Snapshot);
+                snapshot = decoded.Snapshot;
+                received.AddRange(decoded.Days);
+                pageCount++;
+                if (decoded.NextOffset is not { } next) break;
+                True(next > offset);
+                offset = next;
+            } while (true);
+            True(pageCount > 1);
+            var merged = received.GroupBy(day => day.Date).OrderBy(g => g.Key)
+                .Select(g => new HistoryDay(g.Key, g.SelectMany(day => day.Slices).ToArray())).ToArray();
+            Equal(2, merged.Length);
+            Equal(0, merged[1].Slices.Count);
+            Equal(source.Count, merged[0].Slices.Count);
+            True(source.Select(s => (s.PeriodId, s.Observed))
+                .SequenceEqual(merged[0].Slices.Select(s => (s.PeriodId, s.Observed))));
+            var before = await f.Store.QueryPageAsync(query, 40, snapshot, default);
+            await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10)), Gap, default);
+            var preserved = await f.Store.QueryPageAsync(query, 40, snapshot, default);
+            True(before.Days.SelectMany(d => d.Slices).Select(s => s.PeriodId)
+                .SequenceEqual(preserved.Days.SelectMany(d => d.Slices).Select(s => s.PeriodId)));
+            await f.Store.QueryPageAsync(query, 0, null, default);
+            await Reject(() => f.Store.QueryPageAsync(query, 40, snapshot, default));
+            var refreshed = await f.Store.QueryPageAsync(query, 0, null, default);
+            await f.Store.QueryPageAsync(new(Day.AddDays(1), Day.AddDays(1), Key), 0, null, default);
+            await Reject(() => f.Store.QueryPageAsync(query, 1, refreshed.Snapshot, default));
+        });
+        TestFiles("history pages accept large individual items that fit the IPC frame", async f =>
+        {
+            var service = await HistoryService.LoadAsync(f.Profile, default);
+            var snapshot = Snapshot(At.AddMinutes(5)) with { Plan = new string('p', 350_000) };
+            await service.RecordAsync([Record(At, At.AddMinutes(5), snapshot: snapshot)], Gap, default);
+            var commands = new HistoryCommands(service);
+            var overview = await commands.ExecuteAsync(new(HistoryAction.Overview, From: Day, Through: Day), default);
+            True(overview.Success);
+            Equal(snapshot.Plan, overview.Overview!.Items.Single().Plan);
+            var detail = await commands.ExecuteAsync(new(HistoryAction.QueryPage,
+                Query: new(Day, Day, Key)), default);
+            True(detail.Success);
+            Equal(snapshot.Plan, detail.DaysPage!.Days.Single().Slices.Single().Plan);
+            foreach (var response in new[] { overview, detail })
+            {
+                using var frame = new MemoryStream();
+                await PipeProtocol.WriteAsync(frame, new DesktopResponse(true, History: response), default);
+                True(frame.Length - 4 <= PipeProtocol.MaximumMessageBytes);
+            }
+            var enormous = snapshot with { Plan = new string('q', 550_000), ObservedAt = At.AddMinutes(10) };
+            await service.RecordAsync([Record(At.AddMinutes(5), At.AddMinutes(10), snapshot: enormous)], Gap, default);
+            var first = await commands.ExecuteAsync(new(HistoryAction.Overview, From: Day, Through: Day), default);
+            True(first.Success);
+            var firstOverview = first.Overview ?? throw new InvalidOperationException("Overview page missing");
+            var nextOverview = firstOverview.NextOffset ?? throw new InvalidOperationException("Overview continuation missing");
+            var tooLarge = await commands.ExecuteAsync(new(HistoryAction.Overview, From: Day, Through: Day,
+                Offset: nextOverview, Snapshot: firstOverview.Snapshot), default);
+            True(!tooLarge.Success && tooLarge.Error == "ipc_message_too_large");
+            var other = Snapshot(At.AddMinutes(5)) with
+            {
+                Key = new(AccountKey.FromIdentity(Provider.Codex, "other-account"), "other")
+            };
+            await service.RecordAsync([Record(At, At.AddMinutes(5), 2, snapshot: other)], Gap, default);
+            var catalog = await commands.ExecuteAsync(new(HistoryAction.Catalog), default);
+            True(catalog.Success && catalog.Catalog!.Any(item => item.Key == other.Key));
+            var unrelated = await commands.ExecuteAsync(new(HistoryAction.QueryPage,
+                Query: new(Day, Day, other.Key)), default);
+            True(unrelated.Success && unrelated.DaysPage!.Days.Single().Slices.Single().Observed == 2);
+            var query = new HistoryQuery(Day, Day, Key);
+            var firstDay = await commands.ExecuteAsync(new(HistoryAction.QueryPage, Query: query), default);
+            True(firstDay.Success);
+            var firstDayPage = firstDay.DaysPage ?? throw new InvalidOperationException("Detail page missing");
+            var nextDay = firstDayPage.NextOffset ?? throw new InvalidOperationException("Detail continuation missing");
+            var tooLargeDay = await commands.ExecuteAsync(new(HistoryAction.QueryPage, Query: query,
+                Offset: nextDay, Snapshot: firstDayPage.Snapshot), default);
+            True(!tooLargeDay.Success && tooLargeDay.Error == "ipc_message_too_large");
+            foreach (var language in new[] { DisplayLanguage.Japanese, DisplayLanguage.English })
+            {
+                var localizer = new UiLocalizer(language);
+                Equal(localizer.Text(UiText.HistoryResponseTooLarge) + " (ipc_message_too_large)",
+                    localizer.Error(tooLarge.Error!));
+            }
+        });
+        TestFiles("history pages shrink when the full response cannot fit", async f =>
+        {
+            var first = Snapshot(At.AddMinutes(5));
+            var second = first with { Plan = "another plan", ObservedAt = At.AddMinutes(10) };
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5), snapshot: first), Gap, default);
+            await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10), snapshot: second), Gap, default);
+
+            var overview = await f.Store.OverviewAsync(Day, Day, 0, null, default, page => page.Items.Count <= 1);
+            Equal(1, overview.Items.Count);
+            var nextOverview = overview.NextOffset ?? throw new InvalidOperationException("Overview continuation missing");
+            var remaining = await f.Store.OverviewAsync(Day, Day, nextOverview, overview.Snapshot, default,
+                page => page.Items.Count <= 1);
+            Equal(1, remaining.Items.Count);
+            True(overview.Items[0].PeriodId != remaining.Items[0].PeriodId);
+
+            var query = new HistoryQuery(Day, Day, Key);
+            var detail = await f.Store.QueryPageAsync(query, 0, null, default, page => page.Days.Count <= 1);
+            Equal(1, detail.Days.Count);
+            var nextDetail = detail.NextOffset ?? throw new InvalidOperationException("Detail continuation missing");
+            var rest = await f.Store.QueryPageAsync(query, nextDetail, detail.Snapshot, default,
+                page => page.Days.Count <= 1);
+            Equal(1, rest.Days.Count);
+            True(detail.Days[0].Slices[0].PeriodId != rest.Days[0].Slices[0].PeriodId);
+        });
+        Test("history marks a short window partial when it ended today before observation", () =>
+        {
+            var slice = new DailyHistorySlice(Day, Key, "short", null, UsageUnit.PercentagePoints,
+                new(WindowKind.Short, At, At.AddHours(9)), 1, null, Coverage.CompleteToObservation,
+                At, At.AddHours(8), []);
+            True(!DailyHistory.IsPartial(Day, slice, At.AddHours(8)));
+            True(DailyHistory.IsPartial(Day, slice, At.AddHours(12)));
+        });
+        Test("history partial coverage handles the final representable day", () =>
+        {
+            var start = new DateTimeOffset(9999, 12, 31, 0, 0, 0, JapaneseCalendar.Offset);
+            var slice = new DailyHistorySlice(DateOnly.MaxValue, Key, "short", null, UsageUnit.PercentagePoints,
+                new(WindowKind.Short, start, start.AddHours(11)), 1, null, Coverage.CompleteToObservation,
+                start, start.AddHours(10), []);
+            True(!DailyHistory.IsPartial(DateOnly.MaxValue, slice, start.AddHours(10)));
+            True(DailyHistory.IsPartial(DateOnly.MaxValue, slice, start.AddHours(12)));
+        });
         tests.Add(("history overlapping consumption intervals fail instead of double counting", () =>
             Reject(() => Task.FromResult(DailyHistory.Project(Day,
                 [Record(At, At.AddMinutes(5)), Record(At.AddMinutes(1), At.AddMinutes(6))], Gap)))));
@@ -338,6 +601,12 @@ static class HistoryTests
             var service = await HistoryService.LoadAsync(f.Profile, default);
             await service.RecordAsync([Record(At, At.AddMinutes(5))], Gap, default);
             var commands = new HistoryCommands(service);
+            var overview = await commands.ExecuteAsync(new(HistoryAction.Overview, From: Day, Through: Day), default);
+            True(overview.Success && overview.Options is not null && overview.Status is not null);
+            Equal<decimal?>(1, overview.Overview!.Items.Single().Observed);
+            var dayPage = await commands.ExecuteAsync(new(HistoryAction.QueryPage, Query: new(Day, Day, Key)), default);
+            True(dayPage.Success);
+            Equal<decimal?>(1, dayPage.DaysPage!.Days.Single().Slices.Single().Observed);
             var rejected = await commands.ExecuteAsync(new(HistoryAction.ChangeLocation, PreviewId: "forged"), default);
             True(!rejected.Success);
             var preview = await commands.ExecuteAsync(new(HistoryAction.PreviewLocation,

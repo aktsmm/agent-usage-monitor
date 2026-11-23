@@ -2,19 +2,22 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AiUsageTray.Core;
 
 namespace AiUsageTray.Desktop;
 
-public enum HistoryAction { Catalog, Query, PreviewLocation, ChangeLocation, Archive, VerifyArchive, OpenLocation }
+public enum HistoryAction { Catalog, Query, PreviewLocation, ChangeLocation, Archive, VerifyArchive, OpenLocation, Overview, QueryPage }
 public sealed record HistoryRequest(HistoryAction Action, HistoryQuery? Query = null,
-    string? Folder = null, string? PreviewId = null, DateOnly? Month = null, HistoryLocation? Location = null);
+    string? Folder = null, string? PreviewId = null, DateOnly? Month = null, HistoryLocation? Location = null,
+    DateOnly? From = null, DateOnly? Through = null, int Offset = 0, string? Snapshot = null);
 public sealed record HistoryResponse(bool Success, string? Error = null,
     HistoryOptions? Options = null, HistoryStorageStatus? Status = null,
     List<HistoryCatalogItem>? Catalog = null, List<HistoryDay>? Days = null,
-    HistoryMigrationPreview? Migration = null, string? PreviewId = null, string? File = null);
+    HistoryMigrationPreview? Migration = null, string? PreviewId = null, string? File = null,
+    HistoryOverviewPage? Overview = null, HistoryDayPage? DaysPage = null);
 
 public sealed class HistoryCommands(HistoryService service)
 {
@@ -34,6 +37,21 @@ public sealed class HistoryCommands(HistoryService service)
                     var query = request.Query ?? throw new UsageException(FailureKind.Schema, "history_range_missing");
                     return new(true, Status: service.Status,
                         Days: (await service.Store.QueryAsync(query, cancellationToken)).ToList());
+                case HistoryAction.QueryPage:
+                    var pagedQuery = request.Query ?? throw new UsageException(FailureKind.Schema, "history_range_missing");
+                    var queryStatus = service.Status;
+                    return new(true, Status: queryStatus,
+                        DaysPage: await service.Store.QueryPageAsync(pagedQuery, request.Offset, request.Snapshot,
+                            cancellationToken, page => Fits(new(true, Status: queryStatus, DaysPage: page))));
+                case HistoryAction.Overview:
+                    var overviewOptions = service.Options;
+                    var overviewStatus = service.Status;
+                    return new(true, Options: overviewOptions, Status: overviewStatus,
+                        Overview: await service.Store.OverviewAsync(
+                            request.From ?? throw new UsageException(FailureKind.Schema, "history_range_missing"),
+                            request.Through ?? throw new UsageException(FailureKind.Schema, "history_range_missing"),
+                            request.Offset, request.Snapshot, cancellationToken,
+                            page => Fits(new(true, Options: overviewOptions, Status: overviewStatus, Overview: page))));
                 case HistoryAction.PreviewLocation:
                     if (string.IsNullOrWhiteSpace(request.Folder) || !Path.IsPathFullyQualified(request.Folder))
                         throw new UsageException(FailureKind.Schema, "history_folder_required");
@@ -62,6 +80,7 @@ public sealed class HistoryCommands(HistoryService service)
                 default:
                     throw new UsageException(FailureKind.Forbidden, "history_operation_not_allowed");
             }
+
         }
         catch (UsageException ex) { return new(false, ex.SafeCode, Status: service.Status); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -69,4 +88,8 @@ public sealed class HistoryCommands(HistoryService service)
             return new(false, "history_storage_unavailable:" + ex.GetType().Name, Status: service.Status);
         }
     }
+
+    private static bool Fits(HistoryResponse response) =>
+        JsonSerializer.SerializeToUtf8Bytes(new DesktopResponse(true, History: response),
+            StateStore.JsonOptions).Length <= PipeProtocol.MaximumMessageBytes;
 }

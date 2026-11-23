@@ -22,7 +22,7 @@
   <data name="Confirm" xml:space="preserve"><value>確認</value></data>
   <data name="Close" xml:space="preserve"><value>閉じる</value></data>
   <data name="Service" xml:space="preserve"><value>サービス</value></data>
-  <data name="AccountHash" xml:space="preserve"><value>アカウント（identity hash）</value></data>
+  <data name="AccountHash" xml:space="preserve"><value>アカウント</value></data>
   <data name="Quota" xml:space="preserve"><value>契約枠</value></data>
   <data name="Range" xml:space="preserve"><value>表示範囲</value></data>
   <data name="RangeDays" xml:space="preserve"><value>{0}日</value></data>
@@ -106,6 +106,7 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="ExplorerFailed" xml:space="preserve"><value>Explorerを起動できませんでした。権限・保存先を確認してください。</value></data>
   <data name="InvalidHistoryData" xml:space="preserve"><value>履歴データが不正、または未対応です。空の履歴へ置換していません。</value></data>
   <data name="HistoryTooLarge" xml:space="preserve"><value>履歴ファイルが対応サイズを超えています。保存待ちデータは保持します。</value></data>
+  <data name="HistoryResponseTooLarge" xml:space="preserve"><value>履歴の応答が大きすぎるため表示できません。保存済みの履歴は変更されていません。</value></data>
   <data name="WriterMismatch" xml:space="preserve"><value>別の書込主体、または未対応schemaの履歴です。</value></data>
   <data name="ExistingHistoryUnavailable" xml:space="preserve"><value>既存の履歴フォルダーを利用できません。空の履歴を勝手に作成していません。</value></data>
   <data name="MigrationOverlap" xml:space="preserve"><value>元と先の履歴フォルダーは重複できません。</value></data>
@@ -341,4 +342,17 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="FindVscodeAccounts" xml:space="preserve"><value>VS Codeのアカウントを検出</value></data>
   <data name="VscodeBridgeHelp" xml:space="preserve"><value>先にVS Codeで「Agent Usage Monitor: Connect GitHub accounts」を実行してください。拡張機能はアカウント情報と枠の数値だけをローカル保存し、tokenはVS Code内に保持します。</value></data>
   <data name="VscodeNoNewAccounts" xml:space="preserve"><value>15分以内に更新されたVS Codeアカウントのスナップショットがありません（または追加済みです）。VS Codeを起動したまま拡張機能のコマンドを実行し、再試行してください。</value></data>
+  <data name="HistoryOverview" xml:space="preserve"><value>サービス・アカウント別の使用状況</value></data>
+  <data name="HistoryOverviewHint" xml:space="preserve"><value>項目を選んで「日別グラフへ」を押すか、下へスクロールしてください。値は観測できた消費であり、料金やトークン数ではありません。観測が不完全な場合は下限です。</value></data>
+  <data name="HistoryShowGraph" xml:space="preserve"><value>日別グラフへ</value></data>
+  <data name="HistoryOverviewEmpty" xml:space="preserve"><value>記録された契約枠の履歴はありません。</value></data>
+  <data name="HistoryOverviewMeasured" xml:space="preserve"><value>観測消費: {0} {1} · 計測 {2} 日</value></data>
+  <data name="HistoryOverviewUnmeasured" xml:space="preserve"><value>この期間の消費は未計測</value></data>
+  <data name="HistoryOverviewPartial" xml:space="preserve"><value>部分計測・欠測あり。表示値は下限です</value></data>
+  <data name="HistoryOverviewFallback" xml:space="preserve"><value>一覧は利用できません。下のフィルターから契約枠を選んでください。</value></data>
+  <data name="HistoryGraphZero" xml:space="preserve"><value>この期間の観測消費は0です。欠測やAPIの丸めにより、使用が見えない場合があります。</value></data>
+  <data name="HistoryGraphNoData" xml:space="preserve"><value>この期間の消費は未計測です。別の契約枠や表示範囲を選んでください。</value></data>
+  <data name="HistoryOverviewChanged" xml:space="preserve"><value>履歴の読み込み期限切れ、または表示範囲の変更がありました。再読み込みしてください。</value></data>
+  <data name="HistoryPeriodDenominator" xml:space="preserve"><value>枠の分母 {0}</value></data>
+  <data name="HistoryGraphGuidanceAbove" xml:space="preserve"><value>日目安はグラフの表示範囲より上です。選択日の詳細をご確認ください。</value></data>
 </root>

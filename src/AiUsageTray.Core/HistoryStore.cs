@@ -11,6 +11,12 @@ public sealed class HistoryStore
     public string WriterId { get; }
     public string ArchiveFolder => Resolve("archives");
     private bool requireExisting;
+    private sealed record OverviewCache(DateOnly From, DateOnly Through, string Revision,
+        DateTimeOffset CreatedAt, List<HistoryOverviewItem> Items);
+    private OverviewCache? overviewCache;
+    private sealed record QueryCache(HistoryQuery Query, string Revision,
+        DateTimeOffset CreatedAt, List<HistoryDay> Items);
+    private QueryCache? queryCache;
 
     public HistoryStore(string root, string writerId, bool requireExisting = false)
     {
@@ -204,8 +210,7 @@ public sealed class HistoryStore
         query.Validate();
         await ValidateOwnershipAsync(cancellationToken);
         var slices = new List<DailyHistorySlice>();
-        for (var month = new DateOnly(query.From.Year, query.From.Month, 1);
-            month <= query.Through; month = month.AddMonths(1))
+        foreach (var month in MonthStarts(query.From, query.Through))
         {
             var data = await LoadMonthAsync(month, cancellationToken);
             slices.AddRange(data.Slices.Where(s => s.Key == query.Key &&
@@ -214,6 +219,146 @@ public sealed class HistoryStore
         return Enumerable.Range(0, query.Through.DayNumber - query.From.DayNumber + 1)
             .Select(i => query.From.AddDays(i))
             .Select(d => new HistoryDay(d, slices.Where(s => s.Date == d).ToArray())).ToArray();
+    }
+
+    public async Task<HistoryDayPage> QueryPageAsync(HistoryQuery query, int offset,
+        string? snapshot, CancellationToken cancellationToken, Func<HistoryDayPage, bool>? fits = null)
+    {
+        query.Validate();
+        if (offset < 0) throw new UsageException(FailureKind.Schema, "history_query_range_or_key");
+        QueryCache cache;
+        if (offset == 0)
+        {
+            var result = await QueryAsync(query, cancellationToken);
+            var items = result.SelectMany(day => day.Slices.Count == 0 ? [day] :
+                day.Slices.Select(slice => new HistoryDay(day.Date, [slice]))).ToList();
+            var revision = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(items, StateStore.JsonOptions)));
+            if (snapshot is not null && snapshot != revision)
+                throw new UsageException(FailureKind.Storage, "history_overview_changed");
+            cache = new(query, revision, DateTimeOffset.UtcNow, items);
+            queryCache = cache;
+        }
+        else
+        {
+            cache = queryCache ?? throw new UsageException(FailureKind.Storage, "history_overview_changed");
+            if (cache.Query != query || cache.Revision != snapshot ||
+                DateTimeOffset.UtcNow - cache.CreatedAt > TimeSpan.FromMinutes(2))
+                throw new UsageException(FailureKind.Storage, "history_overview_changed");
+        }
+        if (offset > cache.Items.Count)
+            throw new UsageException(FailureKind.Schema, "history_query_range_or_key");
+        const int pageSize = 40;
+        const int pageBytes = 128 * 1024;
+        var page = new List<HistoryDay>();
+        var bytes = 0;
+        foreach (var item in cache.Items.Skip(offset).Take(pageSize))
+        {
+            var size = JsonSerializer.SerializeToUtf8Bytes(item, StateStore.JsonOptions).Length;
+            if (bytes + size > pageBytes && page.Count > 0) break;
+            page.Add(item);
+            bytes += size;
+        }
+        while (true)
+        {
+            var next = offset + page.Count;
+            var result = new HistoryDayPage(page, next < cache.Items.Count ? next : null, cache.Revision);
+            if (fits is null || fits(result)) return result;
+            if (page.Count <= 1)
+                throw new UsageException(FailureKind.Schema, "ipc_message_too_large");
+            page.RemoveAt(page.Count - 1);
+        }
+    }
+
+    public async Task<HistoryOverviewPage> OverviewAsync(DateOnly from, DateOnly through, int offset,
+        string? snapshot, CancellationToken cancellationToken, Func<HistoryOverviewPage, bool>? fits = null)
+    {
+        if (from > through || through.DayNumber - from.DayNumber >= 93 || offset < 0)
+            throw new UsageException(FailureKind.Schema, "history_query_range_or_key");
+        if (offset > 0)
+        {
+            var cached = overviewCache;
+            if (cached is null || cached.From != from || cached.Through != through ||
+                cached.Revision != snapshot || DateTimeOffset.UtcNow - cached.CreatedAt > TimeSpan.FromMinutes(2))
+                throw new UsageException(FailureKind.Storage, "history_overview_changed");
+            return OverviewPage(cached.Items, offset, cached.Revision, fits);
+        }
+        var catalog = await CatalogAsync(cancellationToken);
+        var slices = new List<DailyHistorySlice>();
+        foreach (var month in MonthStarts(from, through))
+        {
+            var data = await LoadMonthAsync(month, cancellationToken);
+            slices.AddRange(data.Slices.Where(s => s.Date >= from && s.Date <= through));
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var today = JapaneseCalendar.Date(now);
+        var items = slices.GroupBy(s => (s.Key, s.PeriodId, s.Plan, s.Unit, s.Window))
+            .Select(g =>
+            {
+                var measured = g.Where(s => s.Observed is not null).ToArray();
+                var relevantDays = Enumerable.Range(0, through.DayNumber - from.DayNumber + 1)
+                    .Select(from.AddDays).Count(date =>
+                    {
+                        if (date > today) return false;
+                        var start = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), JapaneseCalendar.Offset);
+                        return (g.Key.Window.StartsAt is null || g.Key.Window.StartsAt < start.AddDays(1)) &&
+                            (g.Key.Window.ResetsAt is null || g.Key.Window.ResetsAt > start);
+                    });
+                return new HistoryOverviewItem(g.Key.Key, g.Key.PeriodId, g.Key.Plan, g.Key.Unit, g.Key.Window,
+                    measured.Length == 0 ? null : measured.Sum(s => s.Observed!.Value),
+                    measured.Length, measured.Count(s => DailyHistory.IsPartial(s.Date, s, now)),
+                    Math.Max(0, relevantDays - measured.Where(s => s.Date <= today).Select(s => s.Date).Distinct().Count()));
+            }).ToList();
+        var recorded = slices.Select(s => s.Key).ToHashSet();
+        items.AddRange(catalog.Items.Where(c => !recorded.Contains(c.Key))
+            .Select(c => new HistoryOverviewItem(c.Key, null, null, UsageUnit.Unknown, null, null, 0, 0, 0)));
+        var ordered = items.OrderBy(i => i.Key.Account.Provider).ThenBy(i => i.Key.Account.Id, StringComparer.Ordinal)
+            .ThenBy(i => i.Key.Bucket, StringComparer.Ordinal).ThenBy(i => i.PeriodId, StringComparer.Ordinal)
+            .ThenBy(i => i.Unit).ThenBy(i => i.Plan, StringComparer.Ordinal)
+            .ThenBy(i => i.Window?.StartsAt).ThenBy(i => i.Window?.ResetsAt).ToList();
+        var revision = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(ordered, StateStore.JsonOptions)));
+        if (snapshot is not null && snapshot != revision)
+            throw new UsageException(FailureKind.Storage, "history_overview_changed");
+        overviewCache = new(from, through, revision, DateTimeOffset.UtcNow, ordered);
+        return OverviewPage(ordered, offset, revision, fits);
+    }
+
+    private static IEnumerable<DateOnly> MonthStarts(DateOnly from, DateOnly through)
+    {
+        var month = new DateOnly(from.Year, from.Month, 1);
+        while (true)
+        {
+            yield return month;
+            if (month.Year == through.Year && month.Month == through.Month) yield break;
+            month = month.AddMonths(1);
+        }
+    }
+
+    private static HistoryOverviewPage OverviewPage(List<HistoryOverviewItem> ordered, int offset, string revision,
+        Func<HistoryOverviewPage, bool>? fits)
+    {
+        const int pageSize = 40;
+        const int pageBytes = 128 * 1024;
+        if (offset > ordered.Count)
+            throw new UsageException(FailureKind.Schema, "history_query_range_or_key");
+        var page = new List<HistoryOverviewItem>();
+        var bytes = 0;
+        foreach (var item in ordered.Skip(offset).Take(pageSize))
+        {
+            var size = JsonSerializer.SerializeToUtf8Bytes(item, StateStore.JsonOptions).Length;
+            if (bytes + size > pageBytes && page.Count > 0) break;
+            page.Add(item);
+            bytes += size;
+        }
+        while (true)
+        {
+            var next = offset + page.Count;
+            var result = new HistoryOverviewPage(page, next < ordered.Count ? next : null, revision);
+            if (fits is null || fits(result)) return result;
+            if (page.Count <= 1)
+                throw new UsageException(FailureKind.Schema, "ipc_message_too_large");
+            page.RemoveAt(page.Count - 1);
+        }
     }
 
     public async Task ValidateContentAsync(CancellationToken cancellationToken)

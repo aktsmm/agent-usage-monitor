@@ -22,7 +22,7 @@
   <data name="Confirm" xml:space="preserve"><value>Confirm</value></data>
   <data name="Close" xml:space="preserve"><value>Close</value></data>
   <data name="Service" xml:space="preserve"><value>Service</value></data>
-  <data name="AccountHash" xml:space="preserve"><value>Account (identity hash)</value></data>
+  <data name="AccountHash" xml:space="preserve"><value>Account</value></data>
   <data name="Quota" xml:space="preserve"><value>Quota</value></data>
   <data name="Range" xml:space="preserve"><value>Range</value></data>
   <data name="RangeDays" xml:space="preserve"><value>{0} days</value></data>
@@ -106,6 +106,7 @@ Copy → verify hashes and content → switch. Keep the source; never overwrite 
   <data name="ExplorerFailed" xml:space="preserve"><value>Could not launch Explorer. Check permissions and the location.</value></data>
   <data name="InvalidHistoryData" xml:space="preserve"><value>History data is invalid or unsupported; it was not replaced with empty history.</value></data>
   <data name="HistoryTooLarge" xml:space="preserve"><value>The history file exceeds the supported size. Pending records were retained.</value></data>
+  <data name="HistoryResponseTooLarge" xml:space="preserve"><value>The history response is too large to display. Stored history has not been changed.</value></data>
   <data name="WriterMismatch" xml:space="preserve"><value>This history belongs to another writer or schema version.</value></data>
   <data name="ExistingHistoryUnavailable" xml:space="preserve"><value>The existing history folder is unavailable. It was not initialized empty.</value></data>
   <data name="MigrationOverlap" xml:space="preserve"><value>Source and destination history folders must not overlap.</value></data>
@@ -341,4 +342,17 @@ Shown after quota total and period are available.</value></data>
   <data name="FindVscodeAccounts" xml:space="preserve"><value>Find VS Code accounts</value></data>
   <data name="VscodeBridgeHelp" xml:space="preserve"><value>Run “Agent Usage Monitor: Connect GitHub accounts” in VS Code first. The extension stores only account identity and quota values locally; tokens stay in VS Code.</value></data>
   <data name="VscodeNoNewAccounts" xml:space="preserve"><value>No VS Code accounts with a snapshot from the last 15 minutes were found (or they are already added). Keep VS Code running, run the extension command, and try again.</value></data>
+  <data name="HistoryOverview" xml:space="preserve"><value>Usage by service and account</value></data>
+  <data name="HistoryOverviewHint" xml:space="preserve"><value>Select an entry, then choose Go to daily graph or scroll down. Values are observed consumption, not cost or tokens; incomplete observations are lower bounds.</value></data>
+  <data name="HistoryShowGraph" xml:space="preserve"><value>Go to daily graph</value></data>
+  <data name="HistoryOverviewEmpty" xml:space="preserve"><value>No recorded quota history is available.</value></data>
+  <data name="HistoryOverviewMeasured" xml:space="preserve"><value>Observed: {0} {1} · {2} measured days</value></data>
+  <data name="HistoryOverviewUnmeasured" xml:space="preserve"><value>No measured consumption in this range</value></data>
+  <data name="HistoryOverviewPartial" xml:space="preserve"><value>Partial / missing observations; shown as a lower bound</value></data>
+  <data name="HistoryOverviewFallback" xml:space="preserve"><value>The overview is unavailable. Select a quota using the filters below.</value></data>
+  <data name="HistoryGraphZero" xml:space="preserve"><value>Observed consumption is zero in this period; gaps and API rounding may hide usage.</value></data>
+  <data name="HistoryGraphNoData" xml:space="preserve"><value>No measured consumption for this period. Select another quota or range.</value></data>
+  <data name="HistoryOverviewChanged" xml:space="preserve"><value>The history result expired or was replaced while loading. Please reload it.</value></data>
+  <data name="HistoryPeriodDenominator" xml:space="preserve"><value>Quota denominator {0}</value></data>
+  <data name="HistoryGraphGuidanceAbove" xml:space="preserve"><value>The daily guide is above the chart scale; see the selected day's details.</value></data>
 </root>

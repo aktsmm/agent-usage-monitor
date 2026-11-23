@@ -71,9 +71,28 @@ public sealed record HistoryDay(DateOnly Date, IReadOnlyList<DailyHistorySlice> 
             ? Coverage.CompleteToObservation : Coverage.Partial;
 }
 
+public sealed record HistoryOverviewItem(
+    QuotaKey Key, string? PeriodId, string? Plan, UsageUnit Unit, QuotaWindow? Window,
+    decimal? Observed, int MeasuredDays, int PartialDays, int UnmeasuredDays);
+
+public sealed record HistoryOverviewPage(List<HistoryOverviewItem> Items, int? NextOffset, string Snapshot);
+
+public sealed record HistoryDayPage(List<HistoryDay> Days, int? NextOffset, string Snapshot);
+
 public static class DailyHistory
 {
     public static string Month(DateOnly date) => date.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+
+    public static bool IsPartial(DateOnly date, DailyHistorySlice? slice, DateTimeOffset now)
+    {
+        if (slice?.Coverage != Coverage.CompleteToObservation) return true;
+        if (date > JapaneseCalendar.Date(now)) return false;
+        if (date == DateOnly.MaxValue)
+            return slice.Window.ResetsAt is { } lastReset && now >= lastReset && slice.ObservedThrough < lastReset;
+        var dayEnd = new DateTimeOffset(date.AddDays(1).ToDateTime(TimeOnly.MinValue), JapaneseCalendar.Offset);
+        var end = slice.Window.ResetsAt is { } reset && reset < dayEnd ? reset : dayEnd;
+        return now >= end && slice.ObservedThrough < end;
+    }
 
     public static IReadOnlyList<HistoryRecord> Import(UsageState state)
     {
