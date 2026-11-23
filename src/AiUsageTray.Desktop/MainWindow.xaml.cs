@@ -148,11 +148,13 @@ public partial class MainWindow : Window
                 pending.Error is null ? "" : locale.Error(pending.Error));
     }
 
-    private TextBlock Label(string text, double size = 12, bool bold = false) => new()
+    private TextBlock Label(string text, double size = 12, bool bold = false) =>
+        CreateLabel(text, size, bold, (Brush)FindResource(bold ? "TextBrush" : "MutedBrush"));
+
+    private static TextBlock CreateLabel(string text, double size, bool bold, Brush foreground) => new()
     {
         Text = text, FontSize = size, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
-        Foreground = (Brush)FindResource(bold ? "TextBrush" : "MutedBrush"),
-        Margin = new Thickness(0, 3, 0, 3), TextWrapping = TextWrapping.Wrap
+        Foreground = foreground, Margin = new Thickness(0, 3, 0, 3), TextWrapping = TextWrapping.Wrap
     };
     internal static string Unit(UsageUnit unit) => unit switch
     { UsageUnit.PercentagePoints => "pt", UsageUnit.Credits => "クレジット", UsageUnit.Requests => "回", _ => "単位不明" };

@@ -62,5 +62,13 @@ static class QualityGuardTests
             Check(readme.Contains($"docs/{file}", StringComparison.Ordinal),
                 "readme does not link to the current release notes");
         });
+
+        test("overview error wraps long localized messages", () =>
+        {
+            var xaml = XDocument.Load(Path.Combine(RepositoryRoot(), "src", "AiUsageTray.Desktop", "MainWindow.xaml"));
+            XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+            var error = xaml.Descendants().Single(e => (string?)e.Attribute(x + "Name") == "Error");
+            Check((string?)error.Attribute("TextWrapping") == "Wrap", "overview error must wrap");
+        });
     }
 }

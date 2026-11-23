@@ -11,7 +11,7 @@ using AiUsageTray.Desktop;
 
 static class HistoryWindowSmoke
 {
-    public static Task RunAsync(string? outputFolder)
+    public static async Task RunAsync(string? outputFolder)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -26,17 +26,16 @@ static class HistoryWindowSmoke
                     ("BorderBrush", "#474747"), ("AccentBrush", "#FD8EA1"), ("WarningBrush", "#FBBF24")
                 })
                     app.Resources[name] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
-                var overviewWindow = new MainWindow(null!);
-                var labelMethod = typeof(MainWindow).GetMethod("Label",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                var labelMethod = typeof(MainWindow).GetMethod("CreateLabel",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
                     ?? throw new InvalidOperationException("Overview label factory is missing");
-                var amountLabel = (TextBlock)labelMethod.Invoke(overviewWindow,
-                    ["0.0000000000000000000000000001 credits", 21d, true])!;
+                var amountLabel = (TextBlock)labelMethod.Invoke(null,
+                    ["0.0000000000000000000000000001 credits", 21d, true, Brushes.White])!;
                 amountLabel.Measure(new Size(180, double.PositiveInfinity));
                 if (amountLabel.TextWrapping != TextWrapping.Wrap || amountLabel.DesiredSize.Height < 40)
                     throw new InvalidOperationException("Full-precision overview amount does not wrap");
-                var overviewError = (TextBlock)overviewWindow.FindName("Error");
-                overviewError.Text = new UiLocalizer(DisplayLanguage.English).Text(UiText.HistoryIntervalsOverlap);
+                var overviewError = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12,
+                    Text = new UiLocalizer(DisplayLanguage.English).Text(UiText.HistoryIntervalsOverlap) };
                 overviewError.Measure(new Size(180, double.PositiveInfinity));
                 if (overviewError.TextWrapping != TextWrapping.Wrap || overviewError.DesiredSize.Height < 30)
                     throw new InvalidOperationException("Overview history error does not wrap");
@@ -143,6 +142,7 @@ static class HistoryWindowSmoke
                     return detailGate is { } gate && request.Offset == 0
                         ? WaitForDetailAsync(gate.Task, detailResponse) : Task.FromResult(detailResponse);
                 }) { ShowActivated = false };
+                Exception? testError = null;
                 window.Loaded += (_, _) => window.Dispatcher.BeginInvoke(async () =>
                 {
                     try
@@ -461,19 +461,25 @@ static class HistoryWindowSmoke
                         if (lastQuery is null || lastQuery.From != new DateOnly(9999, 12, 1) ||
                             lastQuery.Through != DateOnly.MaxValue)
                             throw new InvalidOperationException("Last representable month was not queried");
-                        completion.SetResult();
                     }
-                    catch (Exception ex) { completion.SetException(ex); }
+                    catch (Exception ex) { testError = ex; }
                     finally { window.Close(); app.Shutdown(); }
                 });
                 app.Run(window);
+                if (testError is null) completion.TrySetResult();
+                else completion.TrySetException(testError);
             }
             catch (Exception ex) { completion.TrySetException(ex); }
         });
         thread.IsBackground = true;
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        return completion.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        try { await completion.Task.WaitAsync(TimeSpan.FromSeconds(20)); }
+        finally
+        {
+            if (!thread.Join(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("History window test thread did not terminate");
+        }
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
