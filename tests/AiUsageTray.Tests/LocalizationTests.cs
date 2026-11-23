@@ -58,10 +58,15 @@ static class LocalizationTests
             var copilot = AccountKey.FromIdentity(Provider.Copilot, "synthetic");
             var claude = AccountKey.FromIdentity(Provider.Claude, "synthetic");
             Equal("チャット (chat)", ja.Bucket(new(copilot, "chat")));
-            Equal("Premium requests (premium_interactions)", en.Bucket(new(copilot, "premium_interactions")));
+            Equal("Premium requests", en.Bucket(new(copilot, "premium_interactions")));
+            Equal("Code completions (completions)", en.Bucket(new(copilot, "completions")));
             Equal("chat", ja.Bucket(new(claude, "chat")));
             Equal("unknown_bucket", en.Bucket(new(copilot, "unknown_bucket")));
             Equal("0.000000001", en.Number(0.000000001m, 2));
+            Equal("121,006", en.Amount(121006m));
+            Equal("1,234.5", en.Amount(1234.5m));
+            Equal("0.000000001", en.Amount(0.000000001m));
+            Equal("121,006", ja.Amount(121006m));
             Equal("0", en.AxisNumber(0));
             Equal("2.5", en.AxisNumber(2.5m));
             Equal("1.23", en.AxisNumber(1.2345m));

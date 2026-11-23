@@ -37,7 +37,7 @@ public partial class MainWindow : Window
                 a.Profile.Enabled && a.Preference.Visible).ToArray();
             var snapshots = AccountOverview.Snapshots(accounts,
                 app.State.Latest.Where(s => s.Key.Account.Provider == provider),
-                failure?.Kind == FailureKind.AccountMismatch).ToArray();
+                failure?.Kind == FailureKind.AccountMismatch, app.Settings.ShowAllCopilotBuckets).ToArray();
             var primaryEntry = accounts.FirstOrDefault(a => a.IsPrimary);
             // The service-level failure belongs to the primary account only.
             bool FailureApplies(string accountId) => failure is not null &&

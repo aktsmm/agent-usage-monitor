@@ -39,6 +39,8 @@ public sealed record DesktopSettings
     public string Theme { get; init; } = "Dark";
     public DisplayLanguage Language { get; init; } = DisplayLanguage.System;
     public bool UsageStripEnabled { get; init; } = true;
+    // Copilot chat and completions are hidden by default; the premium bucket is what people usually mean by usage.
+    public bool ShowAllCopilotBuckets { get; init; }
     public UsageStripPosition? UsageStripPosition { get; init; }
     public bool StartAtLogon { get; init; }
     public List<AccountProfile> ExtraAccounts { get; init; } = [];

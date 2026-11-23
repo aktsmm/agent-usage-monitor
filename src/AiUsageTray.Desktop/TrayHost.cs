@@ -748,14 +748,14 @@ public sealed class TrayHost
     private string NoticeText(NotificationCandidate n) => n.Reason switch
     {
         NotificationReason.DailyGuidance or NotificationReason.WeeklyGuidance => Locale.Format(UiText.NotificationGuidance,
-            NoticeSubject(n), n.Key.Bucket,
+            NoticeSubject(n), Locale.Bucket(n.Key),
             Locale.Text(n.Reason == NotificationReason.DailyGuidance ? UiText.Daily : UiText.Weekly),
             Locale.Coverage(n.Coverage ?? Coverage.Partial)),
-        NotificationReason.Reset => Locale.Format(UiText.NotificationReset, NoticeSubject(n), n.Key.Bucket),
-        NotificationReason.AmountStep => Locale.Format(UiText.NotificationAmount, NoticeSubject(n), n.Key.Bucket,
+        NotificationReason.Reset => Locale.Format(UiText.NotificationReset, NoticeSubject(n), Locale.Bucket(n.Key)),
+        NotificationReason.AmountStep => Locale.Format(UiText.NotificationAmount, NoticeSubject(n), Locale.Bucket(n.Key),
             n.CrossedLevels.LastOrDefault(),
             Locale.Unit(state.Latest.FirstOrDefault(s => s.Key == n.Key)?.Unit ?? UsageUnit.Credits)),
-        _ => Locale.Format(UiText.NotificationUsage, NoticeSubject(n), n.Key.Bucket,
+        _ => Locale.Format(UiText.NotificationUsage, NoticeSubject(n), Locale.Bucket(n.Key),
             string.Join(" / ", n.CrossedLevels.Select(level => level.ToString("0.##", Locale.Culture) + "%")))
     };
 

@@ -70,7 +70,8 @@ public enum UiText
     HistoryOverview, HistoryOverviewHint, HistoryOverviewEmpty, HistoryOverviewMeasured,
     HistoryOverviewUnmeasured, HistoryOverviewPartial, HistoryGraphZero, HistoryGraphZeroWithGaps, HistoryGraphNoData,
     HistoryOverviewChanged, HistoryGraphGuidanceAbove, HistoryPeriodDenominator, HistoryOverviewFallback, HistoryShowGraph,
-    HistoryCumulative, BucketChat, BucketCompletions, BucketPremium, HistoryGraphName, HistoryGraphHelp
+    HistoryCumulative, BucketChat, BucketCompletions, BucketPremium, HistoryGraphName, HistoryGraphHelp,
+    ShowAllCopilotBuckets, ShowAllCopilotBucketsNote
 }
 
 public sealed class UiLocalizer
@@ -114,6 +115,9 @@ public sealed class UiLocalizer
     public string Format(UiText key, params object?[] arguments) =>
         string.Format(Culture, Text(key), arguments);
 
+    // Reported amounts keep every digit but are grouped so that large credit totals stay readable (121,006).
+    public string Amount(decimal value) => value.ToString("#,0.############################", Culture);
+
     public string Number(decimal? value, int decimalPlaces) =>
         value is not { } number ? "—"
         : number != 0 && decimal.Round(number, decimalPlaces) == 0
@@ -141,7 +145,9 @@ public sealed class UiLocalizer
             "premium_interactions" => UiText.BucketPremium,
             _ => (UiText?)null
         } : null;
-        return text is { } known ? $"{Text(known)} ({key.Bucket})" : key.Bucket;
+        return text is { } known
+            ? key.Bucket == QuotaVisibility.CopilotPrimaryBucket ? Text(known) : $"{Text(known)} ({key.Bucket})"
+            : key.Bucket;
     }
 
     // An unlimited quota has no denominator, so show only the absolute usage the API reported.

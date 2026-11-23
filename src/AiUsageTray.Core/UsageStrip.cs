@@ -13,10 +13,10 @@ public static class UsageStrip
     /// account. An account whose identity is not known yet reads the service's snapshots only when it is the service's sole account.
     /// </summary>
     public static IReadOnlyList<AccountStripValue> ValuesByAccount(IEnumerable<AccountEntry> entries,
-        IEnumerable<QuotaSnapshot> snapshots, DateTimeOffset now, TimeSpan maximumAge)
+        IEnumerable<QuotaSnapshot> snapshots, DateTimeOffset now, TimeSpan maximumAge, bool showAllBuckets = false)
     {
         var all = entries.ToList();
-        var list = snapshots.ToList();
+        var list = QuotaVisibility.PrimaryBuckets(snapshots, s => s.Key, showAllBuckets).ToList();
         var visible = new List<AccountEntry>();
         var seenCopilotAccounts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in all.Where(e => e.InStrip))
@@ -39,6 +39,7 @@ public static class UsageStrip
             // An account that only reports unlimited quotas shows its busiest bucket's reported amount (no percentage exists).
             var unlimited = candidates.Length == 0
                 ? matching.Where(s => s.HasMeasurement).OrderByDescending(s => s.Used ?? 0)
+                    .ThenBy(s => QuotaVisibility.BucketPreference(s.Key))
                     .ThenBy(s => s.Key.Bucket, StringComparer.Ordinal).FirstOrDefault()
                 : null;
             var snapshot = candidates.Length == 1 ? candidates[0] : unlimited;

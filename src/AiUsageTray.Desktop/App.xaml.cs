@@ -156,7 +156,7 @@ public partial class App : Application
         {
             if (IsDemo) throw new UsageException(FailureKind.Forbidden, "demo_history_not_saved");
             return await PipeProtocol.HistoryAsync(pipeName, request, cancellationToken);
-        }, Localizer, key => AccountOverview.NameOf(Settings.Accounts(), key));
+        }, Localizer, key => AccountOverview.NameOf(Settings.Accounts(), key), () => Settings.ShowAllCopilotBuckets);
         historyWindow.Closed += (_, _) =>
         {
             if (MainWindow == historyWindow) MainWindow = null;

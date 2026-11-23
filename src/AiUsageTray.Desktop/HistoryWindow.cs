@@ -23,6 +23,9 @@ public sealed class HistoryWindow : Window
     private readonly Func<HistoryRequest, CancellationToken, Task<HistoryResponse>> send;
     private UiLocalizer localizer;
     private readonly Func<AccountKey, string?>? accountName;
+    private readonly Func<bool> showAllBuckets;
+    private bool? loadedShowAll;
+    private bool reloadAfterBusy;
     private readonly List<Action> translations = [];
     private readonly CancellationTokenSource stopping = new();
     private readonly ComboBox provider = new(), account = new(), bucket = new(), range = new(), period = new();
@@ -60,10 +63,11 @@ public sealed class HistoryWindow : Window
         return canvas;
     }
     public HistoryWindow(Func<HistoryRequest, CancellationToken, Task<HistoryResponse>> send,
-        UiLocalizer? localizer = null, Func<AccountKey, string?>? accountName = null)
+        UiLocalizer? localizer = null, Func<AccountKey, string?>? accountName = null, Func<bool>? showAllBuckets = null)
     {
         this.send = send;
         this.accountName = accountName;
+        this.showAllBuckets = showAllBuckets ?? (() => false);
         this.localizer = localizer ?? new();
         Resources.MergedDictionaries.Add(new ResourceDictionary
         {
@@ -118,7 +122,16 @@ public sealed class HistoryWindow : Window
         Loaded += async (_, _) => await RunAsync(LoadAsync);
         Closed += (_, _) => stopping.Cancel();
         chart.SizeChanged += (_, _) => Draw();
-        Activated += (_, _) => Draw();
+        Activated += async (_, _) =>
+        {
+            Draw();
+            // Changing the Copilot bucket setting while history is open takes effect when the window is activated again.
+            if (loadedShowAll is { } loaded && loaded != this.showAllBuckets())
+            {
+                if (IsBusy) reloadAfterBusy = true;
+                else await RunAsync(LoadAsync);
+            }
+        };
     }
 
     public void SetLanguage(UiLocalizer value)
@@ -411,6 +424,12 @@ public sealed class HistoryWindow : Window
                 }
             }
         }
+        // A setting change that arrived while this operation was running is applied once it has finished.
+        if (reloadAfterBusy)
+        {
+            reloadAfterBusy = false;
+            if (loadedShowAll is { } loaded && loaded != showAllBuckets()) await RunAsync(LoadAsync);
+        }
     }
 
     private static bool IsVisualAncestor(DependencyObject candidate, DependencyObject target)
@@ -495,6 +514,11 @@ public sealed class HistoryWindow : Window
                     .Select(item => item.Key).Distinct().ToList();
                 overviewFailure = ex.SafeCode;
             }
+            // Only the display is narrowed: records of the hidden Copilot buckets stay in history.
+            var showAll = showAllBuckets();
+            loadedShowAll = showAll;
+            overviewItems = QuotaVisibility.PrimaryBuckets(overviewItems, item => item.Key, showAll).ToList();
+            catalog = QuotaVisibility.PrimaryBuckets(catalog, key => key, showAll).ToList();
             loading = true;
             try
             {
@@ -508,6 +532,10 @@ public sealed class HistoryWindow : Window
             var row = rows.FirstOrDefault(i => i.Tag is HistoryOverviewItem candidate &&
                     selectedKey is not null && candidate.Key == selectedKey && PeriodOf(candidate) == selectedPeriod)
                 ?? rows.FirstOrDefault(i => i.Tag is HistoryOverviewItem candidate && candidate.Key == selectedKey)
+                // The selected bucket was filtered out: stay on the same account and prefer its premium bucket.
+                ?? rows.Where(i => i.Tag is HistoryOverviewItem candidate && selectedKey is not null &&
+                        candidate.Key.Account == selectedKey.Account)
+                    .OrderBy(i => QuotaVisibility.BucketPreference(((HistoryOverviewItem)i.Tag).Key)).FirstOrDefault()
                 ?? rows.FirstOrDefault();
             loading = true;
             try { overview.SelectedItem = row; }
@@ -563,7 +591,7 @@ public sealed class HistoryWindow : Window
                     + $" – {item.Window.ResetsAt?.ToOffset(JapaneseCalendar.Offset).ToString("g", localizer.Culture)}"
                     + $" · {Denominator(item.PeriodId)}";
                 var amount = item.Observed is { } value
-                    ? localizer.Format(UiText.HistoryOverviewMeasured, value.ToString("G", localizer.Culture),
+                    ? localizer.Format(UiText.HistoryOverviewMeasured, localizer.Amount(value),
                         localizer.Unit(item.Unit), item.MeasuredDays)
                     : localizer.Text(UiText.HistoryOverviewUnmeasured);
                 var content = $"{item.Key.Account.Provider} · {name} · {localizer.Bucket(item.Key)}{periodText}\n{amount}";
@@ -631,7 +659,11 @@ public sealed class HistoryWindow : Window
         var selectedAccount = (account.SelectedItem as ComboBoxItem)?.Tag as AccountKey;
         foreach (var item in catalog.Where(c => c.Account == selectedAccount))
             bucket.Items.Add(new ComboBoxItem { Content = localizer.Bucket(item), Tag = item });
-        bucket.SelectedItem = bucket.Items.OfType<ComboBoxItem>().FirstOrDefault(i => Equals(i.Tag, selected));
+        var choices = bucket.Items.OfType<ComboBoxItem>().ToArray();
+        // A quota key belongs to one account, so switching accounts keeps the same bucket by name and otherwise prefers premium.
+        bucket.SelectedItem = choices.FirstOrDefault(i => Equals(i.Tag, selected))
+            ?? choices.FirstOrDefault(i => selected is not null && (i.Tag as QuotaKey)?.Bucket == selected.Bucket)
+            ?? choices.FirstOrDefault(i => i.Tag is QuotaKey key && QuotaVisibility.BucketPreference(key) == 0);
         if (bucket.SelectedItem is null && bucket.Items.Count > 0) bucket.SelectedIndex = 0;
         loading = previous;
         if (!previous) _ = RunAsync(QueryAsync);
@@ -741,7 +773,7 @@ public sealed class HistoryWindow : Window
     {
         var fields = periodId?.Split('|', 6);
         var value = fields is { Length: >= 5 } && decimal.TryParse(fields[4], NumberStyles.Number,
-            CultureInfo.InvariantCulture, out var total) ? total.ToString("G", localizer.Culture) : "—";
+            CultureInfo.InvariantCulture, out var total) ? localizer.Amount(total) : "—";
         return localizer.Format(UiText.HistoryPeriodDenominator, value);
     }
 
@@ -865,12 +897,12 @@ public sealed class HistoryWindow : Window
     private string Detail(DateOnly date, DailyHistorySlice? slice, bool partial) =>
         localizer.Format(UiText.DayDetail, date.ToString("d", localizer.Culture),
             localizer.Text(slice?.Observed is null ? UiText.Unmeasured : partial ? UiText.Partial : UiText.CompleteToObservation),
-            slice?.Observed?.ToString("G", localizer.Culture) ?? "—", localizer.Unit(slice?.Unit ?? UsageUnit.Unknown),
+            slice?.Observed is { } observed ? localizer.Amount(observed) : "—", localizer.Unit(slice?.Unit ?? UsageUnit.Unknown),
             localizer.Number(slice?.Guidance, 2),
             localizer.Number(slice?.GuidancePercent, 1),
             slice?.ObservedThrough?.ToOffset(JapaneseCalendar.Offset).ToString("g", localizer.Culture) ?? localizer.Text(UiText.NoRecord))
         + "\n" + localizer.Format(UiText.HistoryCumulative,
-            slice?.Cumulative?.ToString("G", localizer.Culture) ?? "—", localizer.Unit(slice?.Unit ?? UsageUnit.Unknown))
+            slice?.Cumulative is { } cumulative ? localizer.Amount(cumulative) : "—", localizer.Unit(slice?.Unit ?? UsageUnit.Unknown))
         + (slice is null ? "" : "\n" + localizer.Text(UiText.Changes) + ": " + string.Join(", ", slice.Events)
             + (slice.UnallocatedBoundary ? " · " + localizer.Text(UiText.DayBoundaryUnallocated) : "")
             + (slice.HasGaps ? " · " + localizer.Text(UiText.ObservationGap) : ""));

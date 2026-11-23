@@ -195,8 +195,8 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="ShortQuota" xml:space="preserve"><value>短期枠</value></data>
   <data name="UnknownQuotaWindow" xml:space="preserve"><value>期間未確認の枠</value></data>
   <data name="QuotaDetails" xml:space="preserve"><value>取得元・枠の詳細</value></data>
-  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.############################} {1} · 分母未取得</value></data>
-  <data name="CreditsApiValue" xml:space="preserve"><value>API報告の使用クレジット: {0:0.############################}（割合とは別の値）</value></data>
+  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:#,0.############################} {1} · 分母未取得</value></data>
+  <data name="CreditsApiValue" xml:space="preserve"><value>API報告の使用クレジット: {0:#,0.############################}（割合とは別の値）</value></data>
   <data name="MainSubtitle" xml:space="preserve"><value>使用量・残量と、日・週の目安</value></data>
   <data name="UpdateIdle" xml:space="preserve"><value>アプリ更新はまだ確認していません。</value></data>
   <data name="UpdateDisabled" xml:space="preserve"><value>自動更新は無効です。手動の更新確認を利用できます。</value></data>
@@ -365,5 +365,7 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="BucketChat" xml:space="preserve"><value>チャット</value></data>
   <data name="BucketCompletions" xml:space="preserve"><value>コード補完</value></data>
   <data name="BucketPremium" xml:space="preserve"><value>プレミアム リクエスト</value></data>
+  <data name="ShowAllCopilotBuckets" xml:space="preserve"><value>Copilotのチャットとコード補完も表示する</value></data>
+  <data name="ShowAllCopilotBucketsNote" xml:space="preserve"><value>既定ではCopilotはプレミアム リクエストだけを表示します。オンにすると、使用量・常駐ストリップ・履歴にチャットとコード補完も表示します。取得・履歴の記録・通知は変わりません。</value></data>
   <data name="HistoryGraphGuidanceAbove" xml:space="preserve"><value>日目安はグラフの表示範囲より上です。選択日の詳細をご確認ください。</value></data>
 </root>

@@ -53,6 +53,7 @@ static class UnlimitedQuotaTests
                 Check(locale.Format(UiText.ScalarWithoutDenominator, 0.004m, locale.Unit(UsageUnit.Credits))
                     .Contains("0.004"), "scalar value");
                 Check(locale.Format(UiText.CreditsApiValue, 0.004m).Contains("0.004"), "API credits");
+                Check(locale.Format(UiText.CreditsApiValue, 121006m).Contains("121,006"), "large API credits are grouped");
                 Check(locale.UnlimitedHeadline(snapshot with { Used = 0.0000000000000000000000000001m })
                     .Contains("0.0000000000000000000000000001"), "full decimal precision");
             }

@@ -18,7 +18,7 @@ public sealed record UsageStripPresentation(IReadOnlyList<UsageStripItem> Items,
     private static UsageStripPresentation CreateByAccount(DesktopSettings settings, UiLocalizer locale,
         IEnumerable<QuotaSnapshot> verified, DateTimeOffset now, TimeSpan maximumAge, HashSet<Provider> failed)
     {
-        var values = UsageStrip.ValuesByAccount(settings.Accounts(), verified, now, maximumAge);
+        var values = UsageStrip.ValuesByAccount(settings.Accounts(), verified, now, maximumAge, settings.ShowAllCopilotBuckets);
         var items = new List<UsageStripItem>();
         var tips = new List<string>();
         // A service-level failure is the primary account's. Other accounts of the same service keep their own state.
