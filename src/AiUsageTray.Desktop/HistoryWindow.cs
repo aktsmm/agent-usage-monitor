@@ -27,7 +27,7 @@ public sealed class HistoryWindow : Window
     private readonly CancellationTokenSource stopping = new();
     private readonly ComboBox provider = new(), account = new(), bucket = new(), range = new(), period = new();
     private readonly TextBox month = new();
-    private readonly Canvas chart = new() { Height = 252 };
+    private readonly Canvas chart = CreateChart();
     private readonly ListBox overview = new() { MaxHeight = 250, MinHeight = 80, Margin = new Thickness(0, 4, 0, 12) };
     private readonly TextBlock overviewStatus = new(), graphStatus = new();
     private readonly TextBlock detail = new(), error = new(), status = new(), folder = new(), archiveStatus = new();
@@ -51,6 +51,14 @@ public sealed class HistoryWindow : Window
     public bool IsBusy { get; private set; }
     public bool IsLocationEditing { get; private set; }
 
+    private static Canvas CreateChart()
+    {
+        var canvas = new HistoryChartCanvas { Height = 252 };
+        // One Tab stop for the whole graph; arrow keys move between days.
+        KeyboardNavigation.SetTabNavigation(canvas, KeyboardNavigationMode.Once);
+        KeyboardNavigation.SetDirectionalNavigation(canvas, KeyboardNavigationMode.Contained);
+        return canvas;
+    }
     public HistoryWindow(Func<HistoryRequest, CancellationToken, Task<HistoryResponse>> send,
         UiLocalizer? localizer = null, Func<AccountKey, string?>? accountName = null)
     {
@@ -119,6 +127,8 @@ public sealed class HistoryWindow : Window
         foreach (var apply in translations) apply();
         foreach (ComboBoxItem item in range.Items)
             item.Content = localizer.Format(UiText.RangeDays, item.Tag);
+        foreach (ComboBoxItem item in bucket.Items)
+            if (item.Tag is QuotaKey key) item.Content = localizer.Bucket(key);
         foreach (ComboBoxItem item in period.Items)
             if (days.SelectMany(d => d.Slices).FirstOrDefault(s => PeriodOf(s) == item.Tag as PeriodSelection) is { } slice)
                 item.Content = PeriodTitle(slice);
@@ -241,9 +251,16 @@ public sealed class HistoryWindow : Window
         history.Children.Add(Label(UiText.PeriodDefinition));
         history.Children.Add(period);
         period.SelectionChanged += (_, _) => { if (!loading) { Draw(); SyncOverviewSelection(); } };
+        translations.Add(() =>
+        {
+            AutomationProperties.SetName(chart, localizer.Text(UiText.HistoryGraphName));
+            AutomationProperties.SetHelpText(chart, localizer.Text(UiText.HistoryGraphHelp));
+        });
         history.Children.Add(chart);
         history.Children.Add(graphStatus);
-        history.Children.Add(Label(UiText.HistoryLegend));
+        var legend = Label(UiText.HistoryLegend);
+        legend.TextWrapping = TextWrapping.Wrap;
+        history.Children.Add(legend);
         var details = new Border
         {
             Padding = new Thickness(16), CornerRadius = new CornerRadius(10),
@@ -549,7 +566,7 @@ public sealed class HistoryWindow : Window
                     ? localizer.Format(UiText.HistoryOverviewMeasured, value.ToString("G", localizer.Culture),
                         localizer.Unit(item.Unit), item.MeasuredDays)
                     : localizer.Text(UiText.HistoryOverviewUnmeasured);
-                var content = $"{item.Key.Account.Provider} · {name} · {item.Key.Bucket}{periodText}\n{amount}";
+                var content = $"{item.Key.Account.Provider} · {name} · {localizer.Bucket(item.Key)}{periodText}\n{amount}";
                 if (item.Observed is not null && (item.PartialDays > 0 || item.UnmeasuredDays > 0))
                     content += " · " + localizer.Text(UiText.HistoryOverviewPartial);
                 overview.Items.Add(new ListBoxItem { Content = content, Tag = item, Padding = new Thickness(8) });
@@ -613,7 +630,7 @@ public sealed class HistoryWindow : Window
         bucket.Items.Clear();
         var selectedAccount = (account.SelectedItem as ComboBoxItem)?.Tag as AccountKey;
         foreach (var item in catalog.Where(c => c.Account == selectedAccount))
-            bucket.Items.Add(new ComboBoxItem { Content = item.Bucket, Tag = item });
+            bucket.Items.Add(new ComboBoxItem { Content = localizer.Bucket(item), Tag = item });
         bucket.SelectedItem = bucket.Items.OfType<ComboBoxItem>().FirstOrDefault(i => Equals(i.Tag, selected));
         if (bucket.SelectedItem is null && bucket.Items.Count > 0) bucket.SelectedIndex = 0;
         loading = previous;
@@ -750,14 +767,18 @@ public sealed class HistoryWindow : Window
         var maximumObserved = slices.Max(s => s?.Observed ?? 0);
         decimal maximum = (maximumObserved > 0 ? maximumObserved
             : Math.Max(1, slices.Max(s => s?.Guidance ?? 0))) * 1.2m;
-        var width = Math.Max(100, chart.ActualWidth - 56);
+        var hasCumulative = slices.Any(s => s?.Cumulative is not null);
+        var width = Math.Max(100, chart.ActualWidth - (hasCumulative ? 104 : 56));
         const double height = 208;
         double cell = width / days.Count;
         var unit = slices.FirstOrDefault(s => s is not null)?.Unit ?? UsageUnit.Unknown;
+        var cumulativeMaximum = slices.Max(s => s?.Cumulative ?? 0);
+        if (cumulativeMaximum == 0) cumulativeMaximum = 1;
         if (slices.All(s => s?.Observed is null))
             graphStatus.Text = localizer.Text(UiText.HistoryGraphNoData);
         else if (slices.All(s => s?.Observed is null or 0))
-            graphStatus.Text = localizer.Text(UiText.HistoryGraphZero);
+            graphStatus.Text = localizer.Text(slices.Any(s => s?.Observed is null)
+                ? UiText.HistoryGraphZeroWithGaps : UiText.HistoryGraphZero);
         if (slices.Any(s => s?.Guidance > maximum))
             graphStatus.Text += (graphStatus.Text.Length == 0 ? "" : "\n") + localizer.Text(UiText.HistoryGraphGuidanceAbove);
         for (int step = 0; step <= 2; step++)
@@ -766,9 +787,15 @@ public sealed class HistoryWindow : Window
             var line = new Line { X1 = 44, X2 = width + 44, Y1 = y, Y2 = y,
                 Stroke = Brush("BorderBrush"), StrokeThickness = 1, IsHitTestVisible = false };
             chart.Children.Add(line);
-            var label = Label((maximum * step / 2).ToString("G3", localizer.Culture)
+            var label = Label(localizer.AxisNumber(maximum * step / 2)
                 + (step == 2 ? " " + localizer.Unit(unit) : ""), 10);
             Canvas.SetTop(label, y - 12); chart.Children.Add(label);
+            if (hasCumulative)
+            {
+                var axisValue = step == 2 ? cumulativeMaximum : step == 1 ? cumulativeMaximum / 2 : 0;
+                var right = Label(localizer.AxisNumber(axisValue), 10);
+                Canvas.SetLeft(right, width + 48); Canvas.SetTop(right, y - 12); chart.Children.Add(right);
+            }
         }
         for (int i = 0; i < days.Count; i++)
         {
@@ -776,13 +803,15 @@ public sealed class HistoryWindow : Window
             bool partial = IsPartial(days[i].Date, slice);
             var measured = slice?.Observed;
             double barHeight = measured is { } value ? Math.Max(2, height * (double)(value / maximum)) : height;
-            var bar = new Button { Width = Math.Max(2, cell - 6), Height = height, Tag = barHeight,
+            var inset = Math.Max(0, Math.Min(3, (cell - 2) / 2));
+            var bar = new Button { Width = cell, Height = height, Tag = barHeight,
+                Padding = new Thickness(inset, 0, inset, 0),
                 Background = measured is null || partial ? Hatch() : Brush("AccentBrush"),
                 BorderBrush = Brush(measured is null ? "BorderBrush" : "AccentBrush"),
                 BorderThickness = new Thickness(days[i].Date == selectedDay ? 3 : 1),
                 Opacity = measured is null ? 0.5 : 1,
                 Style = (Style)FindResource("HistoryBarButton") };
-            Canvas.SetLeft(bar, 44 + cell * i + 3); Canvas.SetTop(bar, 0);
+            Canvas.SetLeft(bar, 44 + cell * i); Canvas.SetTop(bar, 0);
             var day = days[i].Date;
             bar.ToolTip = Detail(day, slice, partial);
             AutomationProperties.SetName(bar, AutomationText.ForButtonLike(Detail(day, slice, partial)));
@@ -808,6 +837,23 @@ public sealed class HistoryWindow : Window
                 chart.Children.Add(label);
             }
         }
+        Point? previous = null;
+        foreach (var (slice, index) in slices.Select((s, i) => (s, i)))
+        {
+            if (slice?.Cumulative is not { } value)
+            {
+                previous = null;
+                continue;
+            }
+            var point = new Point(44 + cell * (index + 0.5), height - height * (double)(value / cumulativeMaximum));
+            if (previous is { } last)
+                chart.Children.Add(new Line { X1 = last.X, Y1 = last.Y, X2 = point.X, Y2 = point.Y,
+                    Stroke = Brush("TextBrush"), StrokeThickness = 2, IsHitTestVisible = false });
+            var marker = new Ellipse { Width = 6, Height = 6, Fill = Brush("TextBrush"), IsHitTestVisible = false };
+            Canvas.SetLeft(marker, point.X - 3); Canvas.SetTop(marker, point.Y - 3);
+            chart.Children.Add(marker);
+            previous = point;
+        }
         var selectedIndex = days.FindIndex(d => d.Date == selectedDay);
         detail.Text = Detail(days[selectedIndex].Date, slices[selectedIndex], IsPartial(days[selectedIndex].Date, slices[selectedIndex]));
         showGraph.IsEnabled = true;
@@ -816,19 +862,15 @@ public sealed class HistoryWindow : Window
     private static bool IsPartial(DateOnly date, DailyHistorySlice? slice)
         => DailyHistory.IsPartial(date, slice, DateTimeOffset.UtcNow);
 
-    private string DetailNumber(decimal? value, int decimalPlaces) =>
-        value is not { } number ? "—"
-        : number != 0 && decimal.Round(number, decimalPlaces) == 0
-            ? number.ToString("0.############################", localizer.Culture)
-            : number.ToString(decimalPlaces == 2 ? "0.##" : "0.#", localizer.Culture);
-
     private string Detail(DateOnly date, DailyHistorySlice? slice, bool partial) =>
         localizer.Format(UiText.DayDetail, date.ToString("d", localizer.Culture),
             localizer.Text(slice?.Observed is null ? UiText.Unmeasured : partial ? UiText.Partial : UiText.CompleteToObservation),
             slice?.Observed?.ToString("G", localizer.Culture) ?? "—", localizer.Unit(slice?.Unit ?? UsageUnit.Unknown),
-            DetailNumber(slice?.Guidance, 2),
-            DetailNumber(slice?.GuidancePercent, 1),
+            localizer.Number(slice?.Guidance, 2),
+            localizer.Number(slice?.GuidancePercent, 1),
             slice?.ObservedThrough?.ToOffset(JapaneseCalendar.Offset).ToString("g", localizer.Culture) ?? localizer.Text(UiText.NoRecord))
+        + "\n" + localizer.Format(UiText.HistoryCumulative,
+            slice?.Cumulative?.ToString("G", localizer.Culture) ?? "—", localizer.Unit(slice?.Unit ?? UsageUnit.Unknown))
         + (slice is null ? "" : "\n" + localizer.Text(UiText.Changes) + ": " + string.Join(", ", slice.Events)
             + (slice.UnallocatedBoundary ? " · " + localizer.Text(UiText.DayBoundaryUnallocated) : "")
             + (slice.HasGaps ? " · " + localizer.Text(UiText.ObservationGap) : ""));
@@ -860,5 +902,17 @@ public sealed class HistoryWindow : Window
             error.Text = localizer.Text(UiText.MigrationCompleted);
         }
         finally { IsLocationEditing = false; }
+    }
+}
+
+internal sealed class HistoryChartCanvas : Canvas
+{
+    protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new Peer(this);
+
+    private sealed class Peer(HistoryChartCanvas owner) : System.Windows.Automation.Peers.FrameworkElementAutomationPeer(owner)
+    {
+        protected override System.Windows.Automation.Peers.AutomationControlType GetAutomationControlTypeCore()
+            => System.Windows.Automation.Peers.AutomationControlType.Group;
+        protected override string GetClassNameCore() => nameof(HistoryChartCanvas);
     }
 }

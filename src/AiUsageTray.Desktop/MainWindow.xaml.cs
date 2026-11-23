@@ -67,6 +67,7 @@ public partial class MainWindow : Window
                 bool stale = !snapshot.IsFresh(DateTimeOffset.UtcNow, app.State.Polling.MaximumAge);
                 content.Children.Add(Label(locale.Text(snapshot.Window.Kind switch { WindowKind.Short => UiText.ShortQuota,
                     WindowKind.Weekly => UiText.WeeklyQuota, WindowKind.Monthly => UiText.MonthlyQuota, _ => UiText.UnknownQuotaWindow }), 12, true));
+                content.Children.Add(Label(locale.Bucket(snapshot.Key), 11));
                 content.Children.Add(Label(locale.Text(stale ? UiText.Stale : FailureApplies(accountGroup.Key) ? UiText.LastConfirmed : UiText.Fetched)
                     + " · " + snapshot.ObservedAt.ToOffset(JapaneseCalendar.Offset).ToString("g", locale.Culture) + " JST", 11));
                 var percent = snapshot.UsedPercent;
@@ -76,6 +77,9 @@ public partial class MainWindow : Window
                     : locale.Text(UiText.UnknownUsage), 21, true));
                 if (percent is { } p)
                     content.Children.Add(new ProgressBar { Value = (double)p });
+                if (snapshot.CreditsUsed is { } credits &&
+                    !(snapshot.Unit == UsageUnit.Credits && snapshot.Used == credits))
+                    content.Children.Add(Label(locale.Format(UiText.CreditsApiValue, credits), 11));
                 content.Children.Add(Label(snapshot.Window.ResetsAt is { } reset
                     ? locale.Format(UiText.ResetAt, reset.ToOffset(JapaneseCalendar.Offset).ToString("g", locale.Culture))
                     : locale.Text(UiText.ResetUnknown), 11));
@@ -97,19 +101,19 @@ public partial class MainWindow : Window
                             value, locale.Coverage(summary.Coverage)) : locale.Text(UiText.Unmeasured), 11));
                         if (ratio is { } progress) cell.Children.Add(new ProgressBar { Value = (double)Math.Min(progress, 100) });
                         cell.Children.Add(Label(locale.Format(UiText.ConsumptionOfGuidance,
-                            summary.Measured?.ToString("0.##", locale.Culture) ?? "—",
-                            summary.Guidance?.ToString("0.##", locale.Culture) ?? "—", locale.Unit(snapshot.Unit)), 11));
+                            locale.Number(summary.Measured, 2),
+                            locale.Number(summary.Guidance, 2), locale.Unit(snapshot.Unit)), 11));
                         Grid.SetColumn(cell, weekly ? 1 : 0);
                         budgets.Children.Add(cell);
                     }
                     content.Children.Add(budgets);
                     content.Children.Add(Label(locale.Format(UiText.FixedAllocation, guidance.Daily, guidance.Weekly, locale.Unit(guidance.Unit)), 11));
+                    if (guidance.Unit == UsageUnit.PercentagePoints)
+                        content.Children.Add(Label(locale.Text(UiText.PercentagePointsExplanation), 11));
                 }
                 else content.Children.Add(Label(locale.Text(UiText.GuidanceUnknown), 11));
                 var details = new StackPanel();
                 details.Children.Add(Label($"{snapshot.Plan ?? locale.Text(UiText.PlanUnknown)} · {snapshot.Key.Bucket} · {snapshot.Source}", 11));
-                if (snapshot.CreditsUsed is { } credits)
-                    details.Children.Add(Label(locale.Format(UiText.CreditsApiValue, credits), 11));
                 content.Children.Add(new Expander { Header = locale.Text(UiText.QuotaDetails), Content = details });
                 }
             }

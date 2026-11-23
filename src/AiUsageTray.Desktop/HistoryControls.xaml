@@ -7,6 +7,7 @@
         <ControlTemplate TargetType="Button">
           <Grid Background="Transparent">
             <Border x:Name="Bar" VerticalAlignment="Bottom" Height="{TemplateBinding Tag}" Background="{TemplateBinding Background}"
+                    Margin="{TemplateBinding Padding}"
                     BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" />
             <Border x:Name="FocusMarker" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1"
                     IsHitTestVisible="False" Visibility="Collapsed" />

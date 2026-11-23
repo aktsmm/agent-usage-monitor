@@ -51,6 +51,25 @@ static class LocalizationTests
             Equal("Unlimited · usage this period 0 credits", en.UnlimitedHeadline(Unlimited(UsageUnit.Credits, 0m)).Replace("Credits", "credits"));
             Equal(ja.Text(UiText.Unlimited), ja.UnlimitedHeadline(Unlimited(UsageUnit.Unknown, null)));
         });
+        Test("quota names retain raw ids and do not reinterpret other providers", () =>
+        {
+            var ja = new UiLocalizer(DisplayLanguage.Japanese);
+            var en = new UiLocalizer(DisplayLanguage.English);
+            var copilot = AccountKey.FromIdentity(Provider.Copilot, "synthetic");
+            var claude = AccountKey.FromIdentity(Provider.Claude, "synthetic");
+            Equal("チャット (chat)", ja.Bucket(new(copilot, "chat")));
+            Equal("Premium requests (premium_interactions)", en.Bucket(new(copilot, "premium_interactions")));
+            Equal("chat", ja.Bucket(new(claude, "chat")));
+            Equal("unknown_bucket", en.Bucket(new(copilot, "unknown_bucket")));
+            Equal("0.000000001", en.Number(0.000000001m, 2));
+            Equal("0", en.AxisNumber(0));
+            Equal("2.5", en.AxisNumber(2.5m));
+            Equal("1.23", en.AxisNumber(1.2345m));
+            Equal("5,000", en.AxisNumber(5000m));
+            Equal("67,000", en.AxisNumber(67000m));
+            Equal("0.00123", en.AxisNumber(0.00123m));
+            Equal("1.2E-09", en.AxisNumber(0.0000000012m));
+        });
         Test("system language selects Japanese only for ja cultures", () =>
         {
             foreach (string culture in new[] { "ja", "ja-JP" })

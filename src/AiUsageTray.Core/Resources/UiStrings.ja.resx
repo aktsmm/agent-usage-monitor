@@ -34,10 +34,11 @@
   <data name="PercentagePoints" xml:space="preserve"><value>pt</value></data>
   <data name="Credits" xml:space="preserve"><value>クレジット</value></data>
   <data name="Requests" xml:space="preserve"><value>回</value></data>
-  <data name="PercentagePointsExplanation" xml:space="preserve"><value>ptは同一枠内のpercentage pointsです。料金・token数ではありません。</value></data>
+  <data name="PercentagePointsExplanation" xml:space="preserve"><value>ptは使用率の増加幅です。使用率が12%から13%になれば1 ptで、料金・トークン数ではありません。</value></data>
   <data name="CalendarExplanation" xml:space="preserve"><value>日境界: JST (UTC+9) / 週は月曜開始</value></data>
   <data name="HistorySubtitle" xml:space="preserve"><value>契約枠の観測差分 · 日付はJST · 料金やtoken数ではありません</value></data>
-  <data name="HistoryLegend" xml:space="preserve"><value>塗り: 観測消費　斜線: 部分計測／未計測　破線: 固定の日目安</value></data>
+  <data name="HistoryLegend" xml:space="preserve"><value>棒（左軸）: 日別の観測消費　斜線: 部分計測／未計測　破線: 日目安
+線（右軸）: 選択した枠・期間のその日の最終累積値。単位は棒と同じです。値がない日は線を切ります。</value></data>
   <data name="HistoryNotes" xml:space="preserve"><value>日境界をまたぐ差分は推測分割しません。部分計測は観測できた下限です。
 差分0はAPI丸めの可能性があり、無消費の保証ではありません。</value></data>
   <data name="Unmeasured" xml:space="preserve"><value>未計測</value></data>
@@ -140,9 +141,9 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="Daily" xml:space="preserve"><value>今日</value></data>
   <data name="Weekly" xml:space="preserve"><value>今週</value></data>
   <data name="GuidanceExceedance" xml:space="preserve"><value>{0} · 目安を超過</value></data>
-  <data name="GuidanceUsage" xml:space="preserve"><value>目安の{0:0}%（{1}）</value></data>
+  <data name="GuidanceUsage" xml:space="preserve"><value>今日・今週の目安に対して {0:0}%（{1}）</value></data>
   <data name="ConsumptionOfGuidance" xml:space="preserve"><value>{0} / {1} {2}</value></data>
-  <data name="FixedAllocation" xml:space="preserve"><value>固定配分：日 {0:0.##} / 週 {1:0.##} {2}</value></data>
+  <data name="FixedAllocation" xml:space="preserve"><value>均等に使う場合の目安：日 {0:0.##} / 週 {1:0.##} {2}（APIの上限ではありません）</value></data>
   <data name="GuidanceUnknown" xml:space="preserve"><value>日・週の目安：総枠または期間が未取得</value></data>
   <data name="ProviderMissing" xml:space="preserve"><value>未取得 · 接続設定で対象アカウントを指定してください。</value></data>
   <data name="ClaudeMissing" xml:space="preserve"><value>未取得 · 公式loginと数値スナップショット連携が必要です。</value></data>
@@ -195,7 +196,7 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="UnknownQuotaWindow" xml:space="preserve"><value>期間未確認の枠</value></data>
   <data name="QuotaDetails" xml:space="preserve"><value>取得元・枠の詳細</value></data>
   <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.############################} {1} · 分母未取得</value></data>
-  <data name="CreditsApiValue" xml:space="preserve"><value>credits_used（API値）{0:0.############################} · 単位換算・枠の合算なし</value></data>
+  <data name="CreditsApiValue" xml:space="preserve"><value>API報告の使用クレジット: {0:0.############################}（割合とは別の値）</value></data>
   <data name="MainSubtitle" xml:space="preserve"><value>使用量・残量と、日・週の目安</value></data>
   <data name="UpdateIdle" xml:space="preserve"><value>アプリ更新はまだ確認していません。</value></data>
   <data name="UpdateDisabled" xml:space="preserve"><value>自動更新は無効です。手動の更新確認を利用できます。</value></data>
@@ -354,8 +355,15 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="HistoryOverviewPartial" xml:space="preserve"><value>部分計測・欠測あり。表示値は下限です</value></data>
   <data name="HistoryOverviewFallback" xml:space="preserve"><value>一覧は利用できません。下のフィルターから契約枠を選んでください。</value></data>
   <data name="HistoryGraphZero" xml:space="preserve"><value>この期間の観測消費は0です。欠測やAPIの丸めにより、使用が見えない場合があります。</value></data>
-  <data name="HistoryGraphNoData" xml:space="preserve"><value>この期間の消費は未計測です。別の契約枠や表示範囲を選んでください。</value></data>
+  <data name="HistoryGraphZeroWithGaps" xml:space="preserve"><value>計測できた日の観測消費は0です。斜線の日は未計測のため、実際の使用量は不明です。</value></data>
+  <data name="HistoryGraphNoData" xml:space="preserve"><value>この期間の日別消費は未計測です。累積値があれば線で示します。</value></data>
   <data name="HistoryOverviewChanged" xml:space="preserve"><value>履歴の読み込み期限切れ、または表示範囲の変更がありました。再読み込みしてください。</value></data>
   <data name="HistoryPeriodDenominator" xml:space="preserve"><value>枠の分母 {0}</value></data>
+  <data name="HistoryCumulative" xml:space="preserve"><value>その日の最終累積値: {0} {1}</value></data>
+  <data name="HistoryGraphName" xml:space="preserve"><value>日別使用量グラフ</value></data>
+  <data name="HistoryGraphHelp" xml:space="preserve"><value>Tab でグラフに移動し、左右の矢印キーで日を切り替え、Enter または Space でその日の詳細を表示します。</value></data>
+  <data name="BucketChat" xml:space="preserve"><value>チャット</value></data>
+  <data name="BucketCompletions" xml:space="preserve"><value>コード補完</value></data>
+  <data name="BucketPremium" xml:space="preserve"><value>プレミアム リクエスト</value></data>
   <data name="HistoryGraphGuidanceAbove" xml:space="preserve"><value>日目安はグラフの表示範囲より上です。選択日の詳細をご確認ください。</value></data>
 </root>
