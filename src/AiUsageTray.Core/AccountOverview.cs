@@ -8,7 +8,7 @@ public static class AccountOverview
 {
     /// <summary>Snapshots to draw for one service. A mismatch of the primary account hides only the primary account's values.</summary>
     public static IReadOnlyList<QuotaSnapshot> Snapshots(IReadOnlyList<AccountEntry> shown,
-        IEnumerable<QuotaSnapshot> providerSnapshots, bool primaryAccountMismatch)
+        IEnumerable<QuotaSnapshot> providerSnapshots, bool primaryAccountMismatch, bool showAllBuckets = false)
     {
         if (shown.Count == 0) return [];
         var list = providerSnapshots.ToList();
@@ -24,7 +24,12 @@ public static class AccountOverview
             else if (shown.Count == 1)
                 list = [];
         }
-        return QuotaVisibility.HideUnlimitedPerAccount(list).ToList();
+        var visible = QuotaVisibility.PrimaryBuckets(list, s => s.Key, showAllBuckets).ToList();
+        // Showing every Copilot bucket is an explicit request, so unlimited ones are not collapsed away.
+        if (showAllBuckets)
+            return visible.Where(s => s.Key.Account.Provider == Provider.Copilot)
+                .Concat(QuotaVisibility.HideUnlimitedPerAccount(visible.Where(s => s.Key.Account.Provider != Provider.Copilot))).ToList();
+        return QuotaVisibility.HideUnlimitedPerAccount(visible).ToList();
     }
 
     /// <summary>Accounts that are shown but have no value yet. They must say so instead of silently disappearing.</summary>

@@ -228,6 +228,70 @@ static class AccountTests
             var oneCard = QuotaVisibility.HideUnlimitedPerAccount([limited, chat, premium]).Where(s => s.Key.Account.Id == chat.Key.Account.Id).ToArray();
             Check(oneCard.Length == 1 && oneCard[0] == premium, "all-unlimited account collapses to its busiest bucket");
         });
+        test("copilot shows only the premium bucket by default, never hides an account, and shows all on request", () =>
+        {
+            var erin = AccountKey.FromIdentity(Provider.Copilot, "erin");
+            var frank = AccountKey.FromIdentity(Provider.Copilot, "frank");
+            QuotaSnapshot In(AccountKey account, string bucket, decimal percent) =>
+                Snap(Provider.Copilot, "x", percent) with { Key = new(account, bucket) };
+            var items = new[]
+            {
+                In(erin, "chat", 10), In(erin, "completions", 20), In(erin, "premium_interactions", 30),
+                In(frank, "chat", 40), In(frank, "completions", 50)
+            };
+            var codex = Snap(Provider.Codex, "gina", 60);
+            var shown = QuotaVisibility.PrimaryBuckets(items.Append(codex), s => s.Key, false).ToArray();
+            Check(shown.Count(s => s.Key.Account == erin) == 1 &&
+                shown.Single(s => s.Key.Account == erin).Key.Bucket == "premium_interactions", "premium only");
+            Check(shown.Count(s => s.Key.Account == frank) == 2, "an account without a premium bucket stays visible");
+            Check(shown.Contains(codex), "other services are unchanged");
+            Check(QuotaVisibility.PrimaryBuckets(items, s => s.Key, true).Count() == items.Length, "show all keeps every bucket");
+            var overview = AccountOverview.Snapshots(baseSettings.Accounts().ToArray(),
+                items.Select(i => i with { Key = new(AccountKey.FromIdentity(Provider.Copilot, "alice-work"), i.Key.Bucket) }),
+                primaryAccountMismatch: false);
+            Check(overview.Count == 1 && overview[0].Key.Bucket == "premium_interactions", "usage view shows premium only");
+            Check(AccountOverview.Snapshots(baseSettings.Accounts().ToArray(),
+                items.Take(3).Select(i => i with { Key = new(AccountKey.FromIdentity(Provider.Copilot, "alice-work"), i.Key.Bucket) }),
+                primaryAccountMismatch: false, showAllBuckets: true).Count == 3, "usage view shows all on request");
+            var mine = AccountKey.FromIdentity(Provider.Copilot, "alice-work");
+            var unlimitedChat = In(mine, "chat", 0) with { Unlimited = true };
+            var limitedPremium = In(mine, "premium_interactions", 30);
+            Check(AccountOverview.Snapshots(baseSettings.Accounts().ToArray(), [unlimitedChat, limitedPremium],
+                primaryAccountMismatch: false, showAllBuckets: true).Count == 2, "show all also lists unlimited Copilot buckets");
+            Check(AccountOverview.Snapshots(baseSettings.Accounts().ToArray(), [unlimitedChat, limitedPremium],
+                primaryAccountMismatch: false).Single().Key.Bucket == "premium_interactions", "default lists premium only");
+        });
+        test("an all-unlimited Copilot account prefers premium over chat when usage ties", () =>
+        {
+            var dave = AccountKey.FromIdentity(Provider.Copilot, "alice-work");
+            QuotaSnapshot Unlimited(string bucket) => Snap(Provider.Copilot, "alice-work", 0) with
+                { Key = new(dave, bucket), Unlimited = true, Used = 0 };
+            var chosen = QuotaVisibility.HideUnlimitedPerAccount([Unlimited("chat"), Unlimited("completions"), Unlimited("premium_interactions")]).Single();
+            Check(chosen.Key.Bucket == "premium_interactions", "premium wins the tie");
+            var strip = UsageStrip.ValuesByAccount(baseSettings.Accounts(),
+                [Unlimited("chat") with { Used = 5 },
+                 Unlimited("premium_interactions") with { Used = 1 }], now, TimeSpan.FromMinutes(10)).Single();
+            Check(strip.Unlimited && strip.Amount == 1, "strip ignores chat when premium exists");
+            var all = UsageStrip.ValuesByAccount(baseSettings.Accounts(),
+                [Unlimited("chat") with { Used = 5 }, Unlimited("premium_interactions") with { Used = 1 }],
+                now, TimeSpan.FromMinutes(10), showAllBuckets: true).Single();
+            Check(all.Amount == 5, "show all restores the busiest bucket");
+        });
+        test("the Copilot bucket setting defaults off, round trips, and an old settings file still loads", () =>
+        {
+            Check(!baseSettings.ShowAllCopilotBuckets, "default is premium only");
+            var path = Path.Combine(Path.GetTempPath(), "aiut-buckets-" + Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                (baseSettings with { ShowAllCopilotBuckets = true }).SaveAsync(path, default).GetAwaiter().GetResult();
+                Check(DesktopSettings.LoadAsync(path, default).GetAwaiter().GetResult().ShowAllCopilotBuckets, "round trip");
+                var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+                node.Remove("ShowAllCopilotBuckets"); node.Remove("showAllCopilotBuckets");
+                File.WriteAllText(path, node.ToJsonString());
+                Check(!DesktopSettings.LoadAsync(path, default).GetAwaiter().GetResult().ShowAllCopilotBuckets, "old file");
+            }
+            finally { File.Delete(path); }
+        });
         test("overview: a primary mismatch hides only the primary's values, never another account's", () =>
         {
             var s = baseSettings.AddAccount(Extra("x1", "carol"));

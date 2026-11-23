@@ -47,6 +47,7 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox autostart = Check("");
     private readonly CheckBox autoUpdate = Check("");
     private readonly CheckBox strip = Check("");
+    private readonly CheckBox showAllBuckets = Check("");
     private readonly ComboBox language = new();
     private bool stripEdited;
     private readonly TextBlock updateStatus = new();
@@ -83,7 +84,8 @@ public sealed class SettingsWindow : Window
             (weekly, UiText.NotifyWeekly), (reset, UiText.NotifyReset), (steps, UiText.NotifySteps),
             (copilot, UiText.FetchCopilot), (codex, UiText.FetchCodex), (claude, UiText.FetchClaude),
             (fallback, UiText.CodexFallback), (autostart, UiText.StartAtLogon),
-            (autoUpdate, UiText.AutoUpdateOption), (strip, UiText.ShowUsageStrip)
+            (autoUpdate, UiText.AutoUpdateOption), (strip, UiText.ShowUsageStrip),
+            (showAllBuckets, UiText.ShowAllCopilotBuckets)
         }) translations.Add(() => control.Content = locale.Text(key));
         translations.Add(() => { Title = locale.Text(UiText.SettingsTitle); cancelDetection.Content = locale.Text(UiText.CancelDetection); });
         draft = app.Settings;
@@ -187,7 +189,7 @@ public sealed class SettingsWindow : Window
         translations.Add(() => defaultQuota.Content = locale.Text(UiText.DefaultQuota));
         quota.Items.Add(defaultQuota);
         foreach (var snapshot in app.State.Latest)
-            quota.Items.Add(new ComboBoxItem { Content = $"{snapshot.Key.Account.Provider} · {snapshot.Key.Bucket}", Tag = snapshot.Key });
+            quota.Items.Add(new ComboBoxItem { Content = $"{snapshot.Key.Account.Provider} · {locale.Bucket(snapshot.Key)}", Tag = snapshot.Key });
         panel.Children.Add(quota);
         allocation.Margin = new Thickness(0, 12, 0, 12);
         panel.Children.Add(new Border { Background = (Brush)app.FindResource("SoftBrush"),
@@ -340,6 +342,8 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(Label(UiText.LanguageInvariantNote));
         panel.Children.Add(strip);
         panel.Children.Add(Label(UiText.UsageStripNotes));
+        panel.Children.Add(showAllBuckets);
+        panel.Children.Add(Label(UiText.ShowAllCopilotBucketsNote));
         panel.Children.Add(autostart);
         panel.Children.Add(Label(UiText.StartupNote));
         panel.Children.Add(Label(UiText.UpdateTitle));
@@ -369,6 +373,7 @@ public sealed class SettingsWindow : Window
         theme.SelectedItem = theme.Items.OfType<ComboBoxItem>().Single(i => (string)i.Tag == s.Theme);
         language.SelectedItem = language.Items.OfType<ComboBoxItem>().Single(i => (DisplayLanguage)i.Tag == s.Language);
         strip.IsChecked = s.UsageStripEnabled;
+        showAllBuckets.IsChecked = s.ShowAllCopilotBuckets;
         autostart.IsChecked = s.StartAtLogon;
         autoUpdate.IsChecked = s.AutoUpdateEnabled;
         changing = previous;
@@ -616,7 +621,8 @@ public sealed class SettingsWindow : Window
         ClaudeSnapshot = claudeFile.Text.Trim(), ClaudeAccountLabel = claudeLabel.Text.Trim(),
         Theme = (string)((ComboBoxItem)theme.SelectedItem).Tag, StartAtLogon = autostart.IsChecked == true,
         Language = (DisplayLanguage)((ComboBoxItem)language.SelectedItem).Tag,
-        UsageStripEnabled = strip.IsChecked == true, AutoUpdateEnabled = autoUpdate.IsChecked == true
+        UsageStripEnabled = strip.IsChecked == true, ShowAllCopilotBuckets = showAllBuckets.IsChecked == true,
+        AutoUpdateEnabled = autoUpdate.IsChecked == true
     };
 
     private static CheckBox Check(string text) => new() { Content = text };

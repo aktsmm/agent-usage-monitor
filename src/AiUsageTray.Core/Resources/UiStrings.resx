@@ -195,8 +195,8 @@ Check only: {0}</value></data>
   <data name="ShortQuota" xml:space="preserve"><value>Short-term quota</value></data>
   <data name="UnknownQuotaWindow" xml:space="preserve"><value>Quota period unknown</value></data>
   <data name="QuotaDetails" xml:space="preserve"><value>Source &amp; quota details</value></data>
-  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.############################} {1} · Total unknown</value></data>
-  <data name="CreditsApiValue" xml:space="preserve"><value>Credits used as reported by API: {0:0.############################} (separate from percentage)</value></data>
+  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:#,0.############################} {1} · Total unknown</value></data>
+  <data name="CreditsApiValue" xml:space="preserve"><value>Credits used as reported by API: {0:#,0.############################} (separate from percentage)</value></data>
   <data name="MainSubtitle" xml:space="preserve"><value>Quota usage and daily/weekly guidance</value></data>
   <data name="UpdateIdle" xml:space="preserve"><value>App updates have not been checked yet.</value></data>
   <data name="UpdateDisabled" xml:space="preserve"><value>Automatic updates are disabled. Manual checking is available.</value></data>
@@ -365,5 +365,7 @@ Shown after quota total and period are available.</value></data>
   <data name="BucketChat" xml:space="preserve"><value>Chat</value></data>
   <data name="BucketCompletions" xml:space="preserve"><value>Code completions</value></data>
   <data name="BucketPremium" xml:space="preserve"><value>Premium requests</value></data>
+  <data name="ShowAllCopilotBuckets" xml:space="preserve"><value>Also show Copilot Chat and Code completions</value></data>
+  <data name="ShowAllCopilotBucketsNote" xml:space="preserve"><value>By default Copilot shows only Premium requests. Turn this on to also list Chat and Code completions in usage, the strip and history. Collection, history records and notifications are not affected.</value></data>
   <data name="HistoryGraphGuidanceAbove" xml:space="preserve"><value>The daily guide is above the chart scale; see the selected day's details.</value></data>
 </root>

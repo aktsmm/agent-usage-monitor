@@ -546,6 +546,7 @@ static class HistoryWindowSmoke
                         if (lastQuery is null || lastQuery.From != new DateOnly(9999, 12, 1) ||
                             lastQuery.Through != DateOnly.MaxValue)
                             throw new InvalidOperationException("Last representable month was not queried");
+                        await HistoryBucketSmoke.RunAsync();
                     }
                     catch (Exception ex) { testError = ex; }
                     finally { window.Close(); app.Shutdown(); }
