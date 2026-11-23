@@ -10,10 +10,10 @@ public static class DemoView
     {
         var now = DateTimeOffset.UtcNow;
         var monthEnd = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddMonths(1);
-        var copilot = new QuotaSnapshot(new(AccountKey.FromIdentity(Provider.Copilot, "demo-only"), "月枠"),
+        var copilot = new QuotaSnapshot(new(AccountKey.FromIdentity(Provider.Copilot, "demo-only"), "monthly"),
             "サンプル", UsageSource.CopilotHttp, now, UsageUnit.PercentagePoints, 32, 100, 32, false,
             new(WindowKind.Monthly, monthEnd.AddMonths(-1), monthEnd));
-        var codex = new QuotaSnapshot(new(AccountKey.FromIdentity(Provider.Codex, "demo-only"), "週枠"),
+        var codex = new QuotaSnapshot(new(AccountKey.FromIdentity(Provider.Codex, "demo-only"), "weekly"),
             "サンプル", UsageSource.CodexHttp, now, UsageUnit.PercentagePoints, 24, 100, 24, false,
             new(WindowKind.Weekly, now.AddDays(-3), now.AddDays(4)));
         var state = new UsageState { Latest = [copilot, codex] };
@@ -24,7 +24,14 @@ public static class DemoView
             var week = Budgets.Summarize(state, snapshot, true) with { Measured = 6.8m, Coverage = Coverage.Partial };
             views.Add(new(snapshot.Key, day, week));
         }
+        // Synthetic enabled profiles so the overview draws the sample snapshots; they hold no credentials or real identities.
         return new(state, new DesktopSettings { Theme = light ? "Light" : "Dark", CodexHome = @"C:\Example\.codex",
+            ExtraAccounts =
+            [
+                new AccountProfile { Id = "demo-copilot", Provider = Provider.Copilot, Enabled = true, Login = "demo-only" },
+                new AccountProfile { Id = "demo-codex", Provider = Provider.Codex, Enabled = true,
+                    Email = "demo@example.test", Home = @"C:\Example\.codex" }
+            ],
             ClaudeMode = ConnectionMode.Attempted, ConnectionResults = new()
             { [Provider.Claude] = new(Provider.Claude, Diagnostics.DiscoveryStatus.LoginRequired, "claude_login_required") } },
             new(), null, views, false);

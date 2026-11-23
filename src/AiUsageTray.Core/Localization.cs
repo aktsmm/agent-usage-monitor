@@ -121,8 +121,8 @@ public sealed class UiLocalizer
     public string Number(decimal? value, int decimalPlaces) =>
         value is not { } number ? "—"
         : number != 0 && decimal.Round(number, decimalPlaces) == 0
-            ? number.ToString("0.############################", Culture)
-            : number.ToString(decimalPlaces == 2 ? "0.##" : "0.#", Culture);
+            ? Amount(number)
+            : number.ToString(decimalPlaces == 2 ? "#,0.##" : "#,0.#", Culture);
 
     // Axis labels keep at least three significant digits; "G3" would switch to exponent notation from 1000 upward,
     // so it is kept only for values too small to print compactly.

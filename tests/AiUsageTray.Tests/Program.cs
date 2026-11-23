@@ -713,6 +713,14 @@ Test("public demo contains synthetic accounts and no saved credentials", () =>
     True(!view.Settings.CopilotEnabled && !view.Settings.CodexEnabled && !view.Settings.ClaudeEnabled);
     Equal("", view.Settings.GithubLogin);
     Equal("", view.Settings.CodexEmail);
+    // The overview filters by enabled accounts: without synthetic profiles the demo drew "not fetched" cards.
+    foreach (var provider in new[] { Provider.Copilot, Provider.Codex })
+    {
+        var accounts = view.Settings.Accounts().Where(a => a.Profile.Provider == provider &&
+            a.Profile.Enabled && a.Preference.Visible).ToArray();
+        Equal(1, AccountOverview.Snapshots(accounts,
+            view.State.Latest.Where(s => s.Key.Account.Provider == provider), false).Count);
+    }
 });
 
 HistoryTests.Add(tests);

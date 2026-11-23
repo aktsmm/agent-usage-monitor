@@ -143,7 +143,7 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="GuidanceExceedance" xml:space="preserve"><value>{0} · 目安を超過</value></data>
   <data name="GuidanceUsage" xml:space="preserve"><value>今日・今週の目安に対して {0:0}%（{1}）</value></data>
   <data name="ConsumptionOfGuidance" xml:space="preserve"><value>{0} / {1} {2}</value></data>
-  <data name="FixedAllocation" xml:space="preserve"><value>均等に使う場合の目安：日 {0:0.##} / 週 {1:0.##} {2}（APIの上限ではありません）</value></data>
+  <data name="FixedAllocation" xml:space="preserve"><value>均等に使う場合の目安：日 {0:#,0.##} / 週 {1:#,0.##} {2}（APIの上限ではありません）</value></data>
   <data name="GuidanceUnknown" xml:space="preserve"><value>日・週の目安：総枠または期間が未取得</value></data>
   <data name="ProviderMissing" xml:space="preserve"><value>未取得 · 接続設定で対象アカウントを指定してください。</value></data>
   <data name="ClaudeMissing" xml:space="preserve"><value>未取得 · 公式loginと数値スナップショット連携が必要です。</value></data>
@@ -293,8 +293,8 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="CheckedAt" xml:space="preserve"><value>確認日時：{0} JST</value></data>
   <data name="DetectedCandidate" xml:space="preserve"><value>検出した候補：{0}</value></data>
   <data name="AutoGuidance" xml:space="preserve"><value>日・週の目安を自動設定（固定配分）
-1日の目安 {0:0.##} {1}
-1週間の目安 {2:0.##} {1}</value></data>
+1日の目安 {0:#,0.##} {1}
+1週間の目安 {2:#,0.##} {1}</value></data>
   <data name="AutoGuidanceUnknown" xml:space="preserve"><value>日・週の目安を自動設定
 総枠・期間の取得後に表示します。</value></data>
   <data name="NotificationNumberInvalid" xml:space="preserve"><value>通知の数値を確認してください。</value></data>

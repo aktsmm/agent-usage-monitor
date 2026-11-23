@@ -143,7 +143,7 @@ Copy → verify hashes and content → switch. Keep the source; never overwrite 
   <data name="GuidanceExceedance" xml:space="preserve"><value>{0} · Guidance exceeded</value></data>
   <data name="GuidanceUsage" xml:space="preserve"><value>{0:0}% of today or this week's guidance ({1})</value></data>
   <data name="ConsumptionOfGuidance" xml:space="preserve"><value>{0} / {1} {2}</value></data>
-  <data name="FixedAllocation" xml:space="preserve"><value>Even-use guidance: daily {0:0.##} / weekly {1:0.##} {2} (not an API limit)</value></data>
+  <data name="FixedAllocation" xml:space="preserve"><value>Even-use guidance: daily {0:#,0.##} / weekly {1:#,0.##} {2} (not an API limit)</value></data>
   <data name="GuidanceUnknown" xml:space="preserve"><value>Guidance unavailable: quota total or period is unknown.</value></data>
   <data name="ProviderMissing" xml:space="preserve"><value>Not fetched. Select the account in Connections.</value></data>
   <data name="ClaudeMissing" xml:space="preserve"><value>Not fetched. Official login and scalar snapshot integration are required.</value></data>
@@ -293,8 +293,8 @@ Usage tokens are not sent to the update source.</value></data>
   <data name="CheckedAt" xml:space="preserve"><value>Checked: {0} JST</value></data>
   <data name="DetectedCandidate" xml:space="preserve"><value>Detected candidate: {0}</value></data>
   <data name="AutoGuidance" xml:space="preserve"><value>Automatic daily/weekly guidance (fixed allocation)
-Daily: {0:0.##} {1}
-Weekly: {2:0.##} {1}</value></data>
+Daily: {0:#,0.##} {1}
+Weekly: {2:#,0.##} {1}</value></data>
   <data name="AutoGuidanceUnknown" xml:space="preserve"><value>Automatic daily/weekly guidance
 Shown after quota total and period are available.</value></data>
   <data name="NotificationNumberInvalid" xml:space="preserve"><value>Check the notification numbers.</value></data>
