@@ -68,8 +68,9 @@ public enum UiText
     UnlimitedUsage, NotificationAmount, AmountStepInput, AmountNotificationPrecisionWarning,
     AmountHiddenNotificationPrecisionWarning, ServiceLabelInput,
     HistoryOverview, HistoryOverviewHint, HistoryOverviewEmpty, HistoryOverviewMeasured,
-    HistoryOverviewUnmeasured, HistoryOverviewPartial, HistoryGraphZero, HistoryGraphNoData,
-    HistoryOverviewChanged, HistoryGraphGuidanceAbove, HistoryPeriodDenominator, HistoryOverviewFallback, HistoryShowGraph
+    HistoryOverviewUnmeasured, HistoryOverviewPartial, HistoryGraphZero, HistoryGraphZeroWithGaps, HistoryGraphNoData,
+    HistoryOverviewChanged, HistoryGraphGuidanceAbove, HistoryPeriodDenominator, HistoryOverviewFallback, HistoryShowGraph,
+    HistoryCumulative, BucketChat, BucketCompletions, BucketPremium, HistoryGraphName, HistoryGraphHelp
 }
 
 public sealed class UiLocalizer
@@ -112,6 +113,36 @@ public sealed class UiLocalizer
 
     public string Format(UiText key, params object?[] arguments) =>
         string.Format(Culture, Text(key), arguments);
+
+    public string Number(decimal? value, int decimalPlaces) =>
+        value is not { } number ? "—"
+        : number != 0 && decimal.Round(number, decimalPlaces) == 0
+            ? number.ToString("0.############################", Culture)
+            : number.ToString(decimalPlaces == 2 ? "0.##" : "0.#", Culture);
+
+    // Axis labels keep at least three significant digits; "G3" would switch to exponent notation from 1000 upward,
+    // so it is kept only for values too small to print compactly.
+    public string AxisNumber(decimal value)
+    {
+        if (value == 0) return "0";
+        if (Math.Abs(value) < 0.0001m) return value.ToString("G3", Culture);
+        var magnitude = (int)Math.Floor(Math.Log10((double)Math.Abs(value)));
+        var places = Math.Clamp(2 - magnitude, 0, 28);
+        var rounded = decimal.Round(value, places, MidpointRounding.AwayFromZero);
+        return rounded.ToString(places == 0 ? "#,0" : "#,0." + new string('#', places), Culture);
+    }
+
+    public string Bucket(QuotaKey key)
+    {
+        var text = key.Account.Provider == Provider.Copilot ? key.Bucket switch
+        {
+            "chat" => UiText.BucketChat,
+            "completions" => UiText.BucketCompletions,
+            "premium_interactions" => UiText.BucketPremium,
+            _ => (UiText?)null
+        } : null;
+        return text is { } known ? $"{Text(known)} ({key.Bucket})" : key.Bucket;
+    }
 
     // An unlimited quota has no denominator, so show only the absolute usage the API reported.
     public string UnlimitedHeadline(QuotaSnapshot snapshot) =>

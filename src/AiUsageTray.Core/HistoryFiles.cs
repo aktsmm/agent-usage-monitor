@@ -9,7 +9,7 @@ internal static class HistoryFiles
 
     public static async Task<T> ReadAsync<T>(string path, CancellationToken cancellationToken)
     {
-        await using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await using var file = OpenRead(path);
         if (file.Length > MaximumBytes)
             throw new UsageException(FailureKind.Storage, "history_file_too_large");
         try
@@ -22,6 +22,13 @@ internal static class HistoryFiles
             throw new UsageException(FailureKind.Storage, "history_json_invalid");
         }
     }
+
+    private static FileStream OpenRead(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+    private static bool IsReplaceConflict(Exception exception) =>
+        exception is IOException or UnauthorizedAccessException &&
+        (exception.HResult & 0xffff) is 5 or 32 or 33;
 
     public static async Task WriteAsync<T>(string path, T value, CancellationToken cancellationToken)
     {
@@ -39,7 +46,18 @@ internal static class HistoryFiles
                 await file.FlushAsync(cancellationToken);
                 file.Flush(true);
             }
-            File.Move(temporary, path, overwrite: true);
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    File.Move(temporary, path, overwrite: true);
+                    break;
+                }
+                catch (Exception ex) when (attempt < 2 && IsReplaceConflict(ex))
+                {
+                    await Task.Delay(attempt == 0 ? 200 : 800, cancellationToken);
+                }
+            }
         }
         finally
         {

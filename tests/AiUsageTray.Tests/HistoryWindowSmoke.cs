@@ -47,6 +47,7 @@ static class HistoryWindowSmoke
                 var windowDefinition = new QuotaWindow(WindowKind.Monthly, now.AddDays(-30), now.AddDays(1));
                 HistoryQuery? lastQuery = null;
                 bool failOverview = false, failQuery = false, mismatchQueryPage = false, singleProvider = false;
+                bool allZeroMeasured = false;
                 bool paginateOverview = false, mismatchOverviewPage = false, skipOverviewItem = false, emptyOverviewPage = false;
                 bool skipQueryItem = false, blankOverviewSnapshot = false, blankQuerySnapshot = false;
                 bool oversizedOverview = false, oversizedSecondPage = false, failCatalog = false;
@@ -120,14 +121,18 @@ static class HistoryWindowSmoke
                         {
                             var day = query.From.AddDays(i);
                             if (query.Key == missingKey) return new HistoryDay(day, []);
-                            decimal? amount = i % 7 == 2 ? null :
+                            decimal? amount = query.Key == otherKey && allZeroMeasured ? 0 : i % 7 == 2 ? null :
                                 query.Key == otherKey || i % 7 == 3 ? 0 : query.Key == tinyKey ? 0.000000001m : 1 + i % 5;
                             var periodId = query.Key == key && i % 2 != 0 ? "synthetic-second" : "synthetic-period";
                             var slice = new DailyHistorySlice(day, query.Key, periodId, "Synthetic plan",
                                 query.Key == tinyKey ? UsageUnit.Credits : UsageUnit.PercentagePoints, windowDefinition,
                                 amount, query.Key == tinyKey ? 0.00001m : 100m / 31, amount is null ? Coverage.Unmeasured
                                     : i % 7 == 4 ? Coverage.Partial : Coverage.CompleteToObservation,
-                                now.AddDays(i - 6), now.AddDays(i - 6).AddHours(8), []);
+                                now.AddDays(i - 6), now.AddDays(i - 6).AddHours(8), [])
+                            {
+                                Cumulative = query.Key == tinyKey && i % 7 != 2 ? i * 0.000000001m : null,
+                                CumulativeCaptured = true
+                            };
                             return query.Key == key && i == 6
                                 ? new HistoryDay(day, [slice, slice with { PeriodId = "synthetic-second", Observed = 0.25m }])
                                 : new HistoryDay(day, [slice]);
@@ -205,10 +210,20 @@ static class HistoryWindowSmoke
                         if (graphRevealRequests != 1)
                             throw new InvalidOperationException("Graph navigation did not reveal the graph");
                         window.RemoveHandler(FrameworkElement.RequestBringIntoViewEvent, revealHandler);
+                        var range = Descendants(window).OfType<ComboBox>().Single(box =>
+                            box.Items.OfType<ComboBoxItem>().Any(item => item.Tag is int days && days == 90));
+                        if (!Descendants(window).OfType<TextBlock>().Any(t =>
+                            t.Text == new UiLocalizer(DisplayLanguage.English).Text(UiText.HistoryGraphZeroWithGaps) ||
+                            t.Text == new UiLocalizer(DisplayLanguage.Japanese).Text(UiText.HistoryGraphZeroWithGaps)))
+                            throw new InvalidOperationException("Mixed zero and unmeasured graph explanation missing");
+                        allZeroMeasured = true;
+                        range.SelectedIndex = 0;
                         if (!Descendants(window).OfType<TextBlock>().Any(t =>
                             t.Text == new UiLocalizer(DisplayLanguage.English).Text(UiText.HistoryGraphZero) ||
                             t.Text == new UiLocalizer(DisplayLanguage.Japanese).Text(UiText.HistoryGraphZero)))
-                            throw new InvalidOperationException("Zero graph explanation missing");
+                            throw new InvalidOperationException("Fully measured zero graph explanation missing");
+                        allZeroMeasured = false;
+                        range.SelectedIndex = 1;
                         overview.Items.OfType<ListBoxItem>()
                             .Single(item => (item.Tag as HistoryOverviewItem)?.Key == missingKey).IsSelected = true;
                         if (lastQuery?.Key != missingKey || !Descendants(window).OfType<TextBlock>().Any(t =>
@@ -233,6 +248,20 @@ static class HistoryWindowSmoke
                                 !tooltip.Contains("0.01%", StringComparison.Ordinal))
                                 throw new InvalidOperationException($"Small positive detail values were rounded to zero: {tooltip}");
                             var bars = smallValueGraph.Children.OfType<Button>().ToArray();
+                            if (!bars[1].ToolTip!.ToString()!.Contains("0.000000001", StringComparison.Ordinal) ||
+                                smallValueGraph.Children.OfType<System.Windows.Shapes.Ellipse>().Count() < 3)
+                                throw new InvalidOperationException("Cumulative values or graph markers are missing");
+                            var markers = smallValueGraph.Children.OfType<System.Windows.Shapes.Ellipse>().Take(3).ToArray();
+                            if (Canvas.GetTop(markers[1]) >= Canvas.GetTop(markers[0]))
+                                throw new InvalidOperationException("Small cumulative values collapsed onto zero");
+                            if (smallValueGraph.Children.IndexOf(markers[0]) <= smallValueGraph.Children.IndexOf(bars[^1]))
+                                throw new InvalidOperationException("Cumulative line is hidden behind the bars");
+                            double firstGapX = Canvas.GetLeft(markers[1]) + 3;
+                            double secondGapX = Canvas.GetLeft(markers[2]) + 3;
+                            if (smallValueGraph.Children.OfType<System.Windows.Shapes.Line>().Any(line =>
+                                line.StrokeThickness == 2 && line.StrokeDashArray is not { Count: > 0 } &&
+                                line.X1 == firstGapX && line.X2 == secondGapX))
+                                throw new InvalidOperationException("Cumulative line crosses a missing day");
                             if (!bars[2].ToolTip!.ToString()!.Contains("—%", StringComparison.Ordinal) ||
                                 !bars[3].ToolTip!.ToString()!.Contains("0%", StringComparison.Ordinal))
                                 throw new InvalidOperationException("Missing and zero guidance usage were not preserved");
@@ -244,6 +273,23 @@ static class HistoryWindowSmoke
                                     throw new InvalidOperationException("History details are not accessible to automation");
                             }
                             window.UpdateLayout();
+                            if (outputFolder is not null && language == DisplayLanguage.Japanese)
+                            {
+                                Directory.CreateDirectory(outputFolder);
+                                var size = new Size(smallValueGraph.ActualWidth, smallValueGraph.ActualHeight);
+                                var visual = new DrawingVisual();
+                                using (var context = visual.RenderOpen())
+                                {
+                                    context.DrawRectangle((Brush)app.Resources["BackgroundBrush"], null, new Rect(size));
+                                    context.DrawRectangle(new VisualBrush(smallValueGraph), null, new Rect(size));
+                                }
+                                var image = new RenderTargetBitmap((int)size.Width, (int)size.Height, 96, 96, PixelFormats.Pbgra32);
+                                image.Render(visual);
+                                var encoder = new PngBitmapEncoder();
+                                encoder.Frames.Add(BitmapFrame.Create(image));
+                                using var stream = File.Create(Path.Combine(outputFolder, "history-cumulative-synthetic.png"));
+                                encoder.Save(stream);
+                            }
                             DependencyObject? hit = smallValueGraph.InputHitTest(
                                 new Point(Canvas.GetLeft(bars[3]) + bars[3].ActualWidth / 2, 18)) as DependencyObject;
                             while (hit is not null && hit != bars[3]) hit = VisualTreeHelper.GetParent(hit);
@@ -317,15 +363,54 @@ static class HistoryWindowSmoke
                                 encoder.Save(stream);
                             }
                         }
-                        var range = Descendants(window).OfType<ComboBox>().Single(box =>
-                            box.Items.OfType<ComboBoxItem>().Any(item => item.Tag is int days && days == 90));
+                        void CheckDayHitTargets(int expected)
+                        {
+                            window.UpdateLayout();
+                            var bars = graph.Children.OfType<Button>().ToArray();
+                            if (bars.Length != expected)
+                                throw new InvalidOperationException("History graph is missing day controls");
+                            if (KeyboardNavigation.GetTabNavigation(graph) != KeyboardNavigationMode.Once ||
+                                UIElementAutomationPeer.CreatePeerForElement(graph) is not { } graphPeer ||
+                                graphPeer.GetAutomationControlType() != AutomationControlType.Group ||
+                                !new[] { DisplayLanguage.English, DisplayLanguage.Japanese }.Any(language =>
+                                    graphPeer.GetName() == new UiLocalizer(language).Text(UiText.HistoryGraphName) &&
+                                    graphPeer.GetHelpText() == new UiLocalizer(language).Text(UiText.HistoryGraphHelp)) ||
+                                bars[1].PredictFocus(FocusNavigationDirection.Right) != (expected > 2 ? bars[2] : null) ||
+                                bars[1].PredictFocus(FocusNavigationDirection.Left) != bars[0])
+                                throw new InvalidOperationException("History graph days are not arrow-key navigable as one tab stop");
+                            var gridLine = graph.Children.OfType<System.Windows.Shapes.Line>()
+                                .First(line => line.StrokeThickness == 1 && line.Y1 == line.Y2);
+                            var cellWidth = (gridLine.X2 - gridLine.X1) / bars.Length;
+                            foreach (var index in new[] { 0, expected / 2, expected - 1 })
+                            {
+                                foreach (var fraction in new[] { 0.1, 0.9 })
+                                {
+                                    DependencyObject? target = graph.InputHitTest(
+                                        new Point(gridLine.X1 + cellWidth * (index + fraction), 18))
+                                        as DependencyObject;
+                                    while (target is not null && target != bars[index])
+                                        target = VisualTreeHelper.GetParent(target);
+                                    if (target != bars[index])
+                                        throw new InvalidOperationException("History chart has dead space between day controls");
+                                }
+                            }
+                        }
                         range.SelectedIndex = 0;
                         if (lastQuery is null || lastQuery.Key != key ||
                             lastQuery.Through.DayNumber - lastQuery.From.DayNumber + 1 != 7)
                             throw new InvalidOperationException("Seven-day range did not preserve the selection");
+                        CheckDayHitTargets(7);
+                        range.SelectedIndex = 1;
+                        CheckDayHitTargets(30);
                         range.SelectedIndex = 2;
                         if (lastQuery is null || lastQuery.Through.DayNumber - lastQuery.From.DayNumber + 1 != 90)
                             throw new InvalidOperationException("Ninety-day range was not queried");
+                        CheckDayHitTargets(90);
+                        overview.Items.OfType<ListBoxItem>()
+                            .Single(item => (item.Tag as HistoryOverviewItem)?.Key == tinyKey).IsSelected = true;
+                        CheckDayHitTargets(90);
+                        overview.Items.OfType<ListBoxItem>()
+                            .First(item => (item.Tag as HistoryOverviewItem)?.Key == key).IsSelected = true;
                         singleProvider = true;
                         range.SelectedIndex = 0;
                         var provider = Descendants(window).OfType<ComboBox>().Single(box =>

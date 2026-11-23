@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AiUsageTray.Core;
 using AiUsageTray.Desktop;
 
@@ -52,8 +53,214 @@ static class HistoryTests
             var records = new[] { Record(At, At.AddMinutes(5), 2), Record(At.AddMinutes(5), At.AddMinutes(10), 3) };
             var result = DailyHistory.Project(Day, records, Gap).Single();
             Equal<decimal?>(5, result.Observed);
+            Equal<decimal?>(20, result.Cumulative);
             Equal(Coverage.CompleteToObservation, result.Coverage);
             Equal<decimal?>(100m / 31, result.Guidance);
+        });
+        TestFiles("history writer retries concurrent readers without changing their snapshots", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var rawPath = Path.Combine(f.Store.Root, "months", "2026-10", "2026-10-12.json");
+            var summaryPath = f.Store.SummaryPath(Day);
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var historyFiles = typeof(HistoryStore).Assembly.GetType("AiUsageTray.Core.HistoryFiles")!;
+            var openRead = historyFiles.GetMethod("OpenRead",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            using var raw = (FileStream)openRead.Invoke(null, [rawPath])!;
+            using var summary = (FileStream)openRead.Invoke(null, [summaryPath])!;
+            using var catalog = (FileStream)openRead.Invoke(null, [catalogPath])!;
+            try
+            {
+                using var inPlace = new FileStream(rawPath, FileMode.Open, FileAccess.Write,
+                    FileShare.ReadWrite | FileShare.Delete);
+                throw new InvalidOperationException("Snapshot reader allowed in-place modification");
+            }
+            catch (IOException) { }
+            var oldRaw = await JsonSerializer.DeserializeAsync<HistoryRawDay>(raw, StateStore.JsonOptions);
+            var oldSummary = await JsonSerializer.DeserializeAsync<HistoryMonth>(summary, StateStore.JsonOptions);
+            var oldCatalog = await JsonSerializer.DeserializeAsync<HistoryCatalog>(catalog, StateStore.JsonOptions);
+            Equal(1, oldRaw!.Records.Count);
+            Equal<decimal?>(1, oldSummary!.Slices.Single().Observed);
+            Equal(At.AddMinutes(5), oldCatalog!.Items.Single().LastObservation);
+            var pending = f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10)), Gap, default);
+            await Task.Delay(150);
+            if (pending.IsCompleted) await pending;
+            True(!pending.IsCompleted);
+            raw.Dispose();
+            summary.Dispose();
+            catalog.Dispose();
+            await pending.WaitAsync(TimeSpan.FromSeconds(5));
+            var current = await f.Store.QueryAsync(new(Day, Day, Key), default);
+            Equal<decimal?>(2, current.Single().Slices.Single().Observed);
+        });
+        TestFiles("history journal preserves pending data after persistent replacement conflict", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var journal = new HistoryJournal(f.Profile, f.Writer);
+            await journal.EnqueueAsync([Record(At.AddMinutes(5), At.AddMinutes(10))], default);
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var historyFiles = typeof(HistoryStore).Assembly.GetType("AiUsageTray.Core.HistoryFiles")!;
+            var openRead = historyFiles.GetMethod("OpenRead",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            using var catalog = (FileStream)openRead.Invoke(null, [catalogPath])!;
+            var blocked = await journal.FlushAsync(f.Store, Gap, default);
+            True(!blocked.Saved && blocked.PendingRecords == 1 &&
+                blocked.Error!.StartsWith("history_storage_unavailable:", StringComparison.Ordinal));
+            var current = await f.Store.QueryAsync(new(Day, Day, Key), default);
+            Equal<decimal?>(1, current.Single().Slices.Single().Observed);
+            True(!Directory.EnumerateFiles(f.Store.Root, "*.tmp", SearchOption.AllDirectories).Any());
+            catalog.Dispose();
+            True((await journal.FlushAsync(f.Store, Gap, default)).Saved);
+            Equal<decimal?>(2, (await f.Store.QueryAsync(new(Day, Day, Key), default)).Single().Slices.Single().Observed);
+        });
+        TestFiles("history replacement retry honours cancellation and cleans temporary files", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var historyFiles = typeof(HistoryStore).Assembly.GetType("AiUsageTray.Core.HistoryFiles")!;
+            var openRead = historyFiles.GetMethod("OpenRead",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            using var catalog = (FileStream)openRead.Invoke(null, [catalogPath])!;
+            using var cancelled = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+            try
+            {
+                await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10)), Gap, cancelled.Token);
+                throw new InvalidOperationException("Expected cancelled replacement");
+            }
+            catch (OperationCanceledException) when (cancelled.IsCancellationRequested) { }
+            var current = await f.Store.QueryAsync(new(Day, Day, Key), default);
+            Equal<decimal?>(1, current.Single().Slices.Single().Observed);
+            True(!Directory.EnumerateFiles(f.Store.Root, "*.tmp", SearchOption.AllDirectories).Any());
+        });
+        Test("history cumulative uses the latest actual observation, including zero and unknown", () =>
+        {
+            var first = Snapshot(At.AddMinutes(5)) with { Used = 20 };
+            var adjusted = Snapshot(At.AddMinutes(10)) with { Used = 0 };
+            var records = new[]
+            {
+                Record(At, first.ObservedAt, 2, snapshot: first),
+                Record(first.ObservedAt, adjusted.ObservedAt, null, DeltaKind.Adjustment, adjusted)
+            };
+            Equal<decimal?>(0, DailyHistory.Project(Day, records, Gap).Single().Cumulative);
+            var unknown = Snapshot(At.AddMinutes(15)) with { Used = null, UsedPercent = null };
+            var later = records.Append(Record(adjusted.ObservedAt, unknown.ObservedAt, null, DeltaKind.Adjustment, unknown));
+            Equal<decimal?>(null, DailyHistory.Project(Day, later, Gap).Single().Cumulative);
+        });
+        Test("history cumulative keeps accounts and period definitions separate", () =>
+        {
+            var one = Snapshot(At.AddMinutes(5)) with { Used = 12 };
+            var other = one with { Key = new(AccountKey.FromIdentity(Provider.Copilot, "other-cumulative"), "monthly"), Used = 30 };
+            var changed = one with { Plan = "different", Used = 40 };
+            var slices = DailyHistory.Project(Day, new[]
+            {
+                Record(At, one.ObservedAt, 1, snapshot: one),
+                Record(At, other.ObservedAt, 1, snapshot: other),
+                Record(At, changed.ObservedAt, 1, snapshot: changed)
+            }, Gap);
+            Equal<decimal?>(12, slices.Single(s => s.Key == Key && s.Plan == "synthetic").Cumulative);
+            Equal<decimal?>(30, slices.Single(s => s.Key == other.Key).Cumulative);
+            Equal<decimal?>(40, slices.Single(s => s.Plan == "different").Cumulative);
+        });
+        Test("history conflicting snapshots at the same instant are not invented", () =>
+        {
+            var one = Snapshot(At.AddMinutes(5)) with { Used = 12 };
+            var other = one with { Used = 30 };
+            var result = DailyHistory.Project(Day, new[]
+            {
+                Record(one.ObservedAt, one.ObservedAt, null, DeltaKind.Baseline, one),
+                Record(other.ObservedAt, other.ObservedAt, null, DeltaKind.Adjustment, other)
+            }, Gap).Single();
+            Equal<decimal?>(null, result.Cumulative);
+        });
+        TestFiles("history query restores actual cumulative values from legacy raw without changing summaries", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var path = f.Store.SummaryPath(Day);
+            var json = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
+            var slices = json["Slices"]!.AsArray();
+            slices[0]!.AsObject().Remove("Cumulative");
+            slices[0]!.AsObject().Remove("CumulativeCaptured");
+            var legacySummary = json.ToJsonString();
+            var later = Snapshot(At.AddMinutes(10)) with { Used = 30 };
+            await f.Store.AppendAsync(Record(At.AddMinutes(5), later.ObservedAt, 10, snapshot: later), Gap, default);
+            await File.WriteAllTextAsync(path, legacySummary);
+            var before = await File.ReadAllBytesAsync(path);
+            var page = await f.Store.QueryPageAsync(new(Day, Day, Key), 0, null, default);
+            Equal<decimal?>(20, page.Days.Single().Slices.Single().Cumulative);
+            using (var frame = new MemoryStream())
+            {
+                await PipeProtocol.WriteAsync(frame, new DesktopResponse(true,
+                    History: new HistoryResponse(true, DaysPage: page)), default);
+                frame.Position = 0;
+                var response = await PipeProtocol.ReadAsync<DesktopResponse>(frame, default);
+                Equal<decimal?>(20, response.History!.DaysPage!.Days.Single().Slices.Single().Cumulative);
+            }
+            var after = await File.ReadAllBytesAsync(path);
+            True(before.SequenceEqual(after));
+            var missingPath = Path.Combine(f.Store.Root, "months", "2026-10", "2026-10-12.json");
+            File.Delete(missingPath);
+            var missing = await f.Store.QueryAsync(new(Day, Day, Key), default);
+            Equal<decimal?>(null, missing.Single().Slices.Single().Cumulative);
+        });
+        TestFiles("legacy history query reads verified archive when raw is unavailable", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            await f.Store.ArchiveAsync(Day, At.AddMonths(2), default);
+            var path = f.Store.SummaryPath(Day);
+            var json = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
+            var slice = json["Slices"]![0]!.AsObject();
+            slice.Remove("Cumulative");
+            slice.Remove("CumulativeCaptured");
+            await File.WriteAllTextAsync(path, json.ToJsonString());
+            File.Delete(Path.Combine(f.Store.Root, "months", "2026-10", "2026-10-12.json"));
+            var recovered = await f.Store.QueryAsync(new(Day, Day, Key), default);
+            Equal<decimal?>(20, recovered.Single().Slices.Single().Cumulative);
+            await File.WriteAllTextAsync(f.Store.ArchivePath(Day), "invalid");
+            await Reject(() => f.Store.QueryAsync(new(Day, Day, Key), default));
+        });
+        TestFiles("legacy history uses each day's raw when another day requires an archive", async f =>
+        {
+            var nextAt = At.AddDays(1);
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            await f.Store.AppendAsync(Record(nextAt, nextAt.AddMinutes(5)), Gap, default);
+            await f.Store.ArchiveAsync(Day, At.AddMonths(2), default);
+
+            var summaryPath = f.Store.SummaryPath(Day);
+            var summary = JsonNode.Parse(await File.ReadAllTextAsync(summaryPath))!;
+            foreach (var slice in summary["Slices"]!.AsArray())
+            {
+                slice!.AsObject().Remove("Cumulative");
+                slice.AsObject().Remove("CumulativeCaptured");
+            }
+            await File.WriteAllTextAsync(summaryPath, summary.ToJsonString());
+            var originalSummary = await File.ReadAllBytesAsync(summaryPath);
+            var archivePath = f.Store.ArchivePath(Day);
+            var originalArchive = await File.ReadAllBytesAsync(archivePath);
+
+            var monthFolder = Path.GetDirectoryName(summaryPath)!;
+            var existingPath = Path.Combine(monthFolder, "2026-10-12.json");
+            var missingPath = Path.Combine(monthFolder, "2026-10-13.json");
+            var existing = JsonNode.Parse(await File.ReadAllTextAsync(existingPath))!;
+            existing["Records"]![0]!["Snapshot"]!["Used"] = 77;
+            await File.WriteAllTextAsync(existingPath, existing.ToJsonString());
+            File.Delete(missingPath);
+
+            var days = await f.Store.QueryAsync(new(Day, Day.AddDays(1), Key), default);
+            Equal<decimal?>(77, days[0].Slices.Single().Cumulative);
+            Equal<decimal?>(20, days[1].Slices.Single().Cumulative);
+
+            await File.WriteAllTextAsync(existingPath, "{invalid");
+            try
+            {
+                await f.Store.QueryAsync(new(Day, Day.AddDays(1), Key), default);
+                throw new InvalidOperationException("Expected invalid raw history error");
+            }
+            catch (UsageException ex) when (ex.SafeCode == "history_json_invalid") { }
+            Equal("{invalid", await File.ReadAllTextAsync(existingPath));
+            var finalSummary = await File.ReadAllBytesAsync(summaryPath);
+            var finalArchive = await File.ReadAllBytesAsync(archivePath);
+            True(originalSummary.SequenceEqual(finalSummary));
+            True(originalArchive.SequenceEqual(finalArchive));
         });
         TestFiles("history overview keeps accounts, units, periods, zero and missing days separate", async f =>
         {
@@ -467,6 +674,8 @@ static class HistoryTests
             var days = await f.Store.QueryAsync(new(new(2026, 10, 31), new(2026, 11, 1), Key), default);
             Equal(2, days.Count);
             True(days.All(d => d.Slices.Single().UnallocatedBoundary));
+            Equal<decimal?>(null, days[0].Slices.Single().Cumulative);
+            Equal<decimal?>(20, days[1].Slices.Single().Cumulative);
             True(File.Exists(f.Store.SummaryPath(new(2026, 10, 31))) && File.Exists(f.Store.SummaryPath(new(2026, 11, 1))));
             await f.Store.ArchiveAsync(new DateOnly(2026, 11, 1), end.AddMonths(1), default);
             await f.Store.AppendAsync(record, Gap, default);

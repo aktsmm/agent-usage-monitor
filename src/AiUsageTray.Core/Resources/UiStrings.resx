@@ -34,10 +34,11 @@
   <data name="PercentagePoints" xml:space="preserve"><value>pt</value></data>
   <data name="Credits" xml:space="preserve"><value>credits</value></data>
   <data name="Requests" xml:space="preserve"><value>requests</value></data>
-  <data name="PercentagePointsExplanation" xml:space="preserve"><value>pt = percentage points within one quota; not cost or tokens.</value></data>
+  <data name="PercentagePointsExplanation" xml:space="preserve"><value>pt is a change in usage percentage: 12% to 13% is 1 pt, not cost or tokens.</value></data>
   <data name="CalendarExplanation" xml:space="preserve"><value>Day boundary: JST (UTC+9) / Week starts Monday</value></data>
   <data name="HistorySubtitle" xml:space="preserve"><value>Observed quota deltas · JST dates · Not cost or tokens</value></data>
-  <data name="HistoryLegend" xml:space="preserve"><value>Solid: observed consumption   Hatched: partial/unmeasured   Dashed: fixed daily guidance</value></data>
+  <data name="HistoryLegend" xml:space="preserve"><value>Bars (left axis): observed daily consumption   Hatched: partial/unmeasured   Dashed: daily guidance
+Line (right axis): last cumulative value of each day in the selected quota period, in the same unit as the bars. Gaps break the line.</value></data>
   <data name="HistoryNotes" xml:space="preserve"><value>Deltas crossing day boundaries are not guessed or split. Partial values are observed lower bounds.
 A zero delta may reflect API rounding; it does not prove zero consumption.</value></data>
   <data name="Unmeasured" xml:space="preserve"><value>Unmeasured</value></data>
@@ -140,9 +141,9 @@ Copy → verify hashes and content → switch. Keep the source; never overwrite 
   <data name="Daily" xml:space="preserve"><value>Today</value></data>
   <data name="Weekly" xml:space="preserve"><value>This week</value></data>
   <data name="GuidanceExceedance" xml:space="preserve"><value>{0} · Guidance exceeded</value></data>
-  <data name="GuidanceUsage" xml:space="preserve"><value>{0:0}% of guidance ({1})</value></data>
+  <data name="GuidanceUsage" xml:space="preserve"><value>{0:0}% of today or this week's guidance ({1})</value></data>
   <data name="ConsumptionOfGuidance" xml:space="preserve"><value>{0} / {1} {2}</value></data>
-  <data name="FixedAllocation" xml:space="preserve"><value>Fixed allocation: daily {0:0.##} / weekly {1:0.##} {2}</value></data>
+  <data name="FixedAllocation" xml:space="preserve"><value>Even-use guidance: daily {0:0.##} / weekly {1:0.##} {2} (not an API limit)</value></data>
   <data name="GuidanceUnknown" xml:space="preserve"><value>Guidance unavailable: quota total or period is unknown.</value></data>
   <data name="ProviderMissing" xml:space="preserve"><value>Not fetched. Select the account in Connections.</value></data>
   <data name="ClaudeMissing" xml:space="preserve"><value>Not fetched. Official login and scalar snapshot integration are required.</value></data>
@@ -195,7 +196,7 @@ Check only: {0}</value></data>
   <data name="UnknownQuotaWindow" xml:space="preserve"><value>Quota period unknown</value></data>
   <data name="QuotaDetails" xml:space="preserve"><value>Source &amp; quota details</value></data>
   <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.############################} {1} · Total unknown</value></data>
-  <data name="CreditsApiValue" xml:space="preserve"><value>credits_used (API): {0:0.############################} · No conversion or quota aggregation</value></data>
+  <data name="CreditsApiValue" xml:space="preserve"><value>Credits used as reported by API: {0:0.############################} (separate from percentage)</value></data>
   <data name="MainSubtitle" xml:space="preserve"><value>Quota usage and daily/weekly guidance</value></data>
   <data name="UpdateIdle" xml:space="preserve"><value>App updates have not been checked yet.</value></data>
   <data name="UpdateDisabled" xml:space="preserve"><value>Automatic updates are disabled. Manual checking is available.</value></data>
@@ -354,8 +355,15 @@ Shown after quota total and period are available.</value></data>
   <data name="HistoryOverviewPartial" xml:space="preserve"><value>Partial / missing observations; shown as a lower bound</value></data>
   <data name="HistoryOverviewFallback" xml:space="preserve"><value>The overview is unavailable. Select a quota using the filters below.</value></data>
   <data name="HistoryGraphZero" xml:space="preserve"><value>Observed consumption is zero in this period; gaps and API rounding may hide usage.</value></data>
-  <data name="HistoryGraphNoData" xml:space="preserve"><value>No measured consumption for this period. Select another quota or range.</value></data>
+  <data name="HistoryGraphZeroWithGaps" xml:space="preserve"><value>Observed consumption is zero on measured days. Hatched days are unmeasured, so their usage is unknown.</value></data>
+  <data name="HistoryGraphNoData" xml:space="preserve"><value>Daily consumption is unmeasured for this period. Available cumulative values appear as a line.</value></data>
   <data name="HistoryOverviewChanged" xml:space="preserve"><value>The history result expired or was replaced while loading. Please reload it.</value></data>
   <data name="HistoryPeriodDenominator" xml:space="preserve"><value>Quota denominator {0}</value></data>
+  <data name="HistoryCumulative" xml:space="preserve"><value>Last cumulative value that day: {0} {1}</value></data>
+  <data name="HistoryGraphName" xml:space="preserve"><value>Daily usage graph</value></data>
+  <data name="HistoryGraphHelp" xml:space="preserve"><value>Use Tab to enter the graph, Left and Right arrow keys to move between days, and Enter or Space to show a day's details.</value></data>
+  <data name="BucketChat" xml:space="preserve"><value>Chat</value></data>
+  <data name="BucketCompletions" xml:space="preserve"><value>Code completions</value></data>
+  <data name="BucketPremium" xml:space="preserve"><value>Premium requests</value></data>
   <data name="HistoryGraphGuidanceAbove" xml:space="preserve"><value>The daily guide is above the chart scale; see the selected day's details.</value></data>
 </root>

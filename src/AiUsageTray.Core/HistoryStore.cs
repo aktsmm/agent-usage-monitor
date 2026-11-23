@@ -122,7 +122,7 @@ public sealed class HistoryStore
                 string.IsNullOrWhiteSpace(s.Key.Bucket) || s.Window is null ||
                 !Enum.IsDefined(s.Window.Kind) || s.Events.Any(e => !Enum.IsDefined(e)) ||
                 !Enum.IsDefined(s.Coverage) || !Enum.IsDefined(s.Unit) ||
-                s.Observed < 0 || s.Guidance < 0 ||
+                s.Observed < 0 || s.Guidance < 0 || s.Cumulative < 0 ||
                 (s.Coverage == Coverage.CompleteToObservation && s.ObservedThrough is null) ||
                 (s.Coverage == Coverage.Unmeasured ? s.Observed is not null : s.Observed is null)) ||
             month.Slices.Select(s => (s.Date, s.Key, s.PeriodId)).Distinct().Count() != month.Slices.Count)
@@ -230,6 +230,28 @@ public sealed class HistoryStore
             var data = await LoadMonthAsync(month, cancellationToken);
             slices.AddRange(data.Slices.Where(s => s.Key == query.Key &&
                 s.Date >= query.From && s.Date <= query.Through));
+        }
+        var legacyDates = slices.Where(s => !s.CumulativeCaptured).Select(s => s.Date).Distinct().ToArray();
+        var missingDates = legacyDates.Where(date => !File.Exists(Resolve(RawRelative(date)))).ToHashSet();
+        var archivedDays = new Dictionary<DateOnly, HistoryRawDay>();
+        foreach (var month in missingDates.Where(date => File.Exists(ArchivePath(date)))
+                     .Select(date => new DateOnly(date.Year, date.Month, 1)).Distinct())
+            await VerifyArchiveFileAsync(ArchivePath(month), month, cancellationToken, day =>
+            {
+                if (missingDates.Contains(day.Date)) archivedDays[day.Date] = day;
+            });
+        foreach (var date in legacyDates)
+        {
+            var raw = archivedDays.TryGetValue(date, out var archived)
+                ? archived : await LoadDayAsync(date, cancellationToken);
+            for (var i = 0; i < slices.Count; i++)
+                if (slices[i].Date == date && !slices[i].CumulativeCaptured)
+                    slices[i] = slices[i] with
+                    {
+                        Cumulative = DailyHistory.CumulativeAtEndOfDay(date, slices[i].Key,
+                            slices[i].PeriodId, slices[i].ObservedThrough, raw.Records),
+                        CumulativeCaptured = true
+                    };
         }
         return Enumerable.Range(0, query.Through.DayNumber - query.From.DayNumber + 1)
             .Select(i => query.From.AddDays(i))
@@ -483,7 +505,7 @@ public sealed class HistoryStore
     }
 
     private async Task<IReadOnlySet<string>> VerifyArchiveFileAsync(
-        string path, DateOnly month, CancellationToken cancellationToken)
+        string path, DateOnly month, CancellationToken cancellationToken, Action<HistoryRawDay>? onDay = null)
     {
         try
         {
@@ -534,6 +556,7 @@ public sealed class HistoryStore
                     if (DailyHistory.Month(JapaneseCalendar.Date(record.Delta.To)) == manifest.Month)
                         ids.Add(record.Id);
                 }
+                onDay?.Invoke(day);
             }
             return ids;
         }

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AiUsageTray.Core;
 
@@ -49,6 +50,12 @@ public sealed record DailyHistorySlice(
     DateTimeOffset? FirstObservation, DateTimeOffset? ObservedThrough, DeltaKind[] Events,
     bool UnallocatedBoundary = false, bool HasGaps = false)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? Cumulative { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CumulativeCaptured { get; init; }
+
     public decimal? GuidancePercent => Guidance is > 0 && Observed is { } value
         ? value / Guidance * 100 : null;
 }
@@ -82,6 +89,21 @@ public sealed record HistoryDayPage(List<HistoryDay> Days, int? NextOffset, stri
 public static class DailyHistory
 {
     public static string Month(DateOnly date) => date.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+
+    internal static decimal? CumulativeAtEndOfDay(DateOnly date, QuotaKey key, string periodId,
+        DateTimeOffset? observedThrough, IEnumerable<HistoryRecord> records)
+    {
+        if (observedThrough is null) return null;
+        var candidates = records.Where(r => r.Snapshot.Key == key && r.Snapshot.PeriodId == periodId &&
+            JapaneseCalendar.Date(r.Snapshot.ObservedAt) == date &&
+            r.Snapshot.ObservedAt <= observedThrough).ToArray();
+        if (candidates.Length == 0) return null;
+        var latest = candidates.Max(r => r.Snapshot.ObservedAt);
+        if (JapaneseCalendar.Date(observedThrough.Value) == date && latest != observedThrough) return null;
+        var values = candidates.Where(r => r.Snapshot.ObservedAt == latest)
+            .Select(r => r.Snapshot.Used).Distinct().ToArray();
+        return values.Length == 1 ? values[0] : null;
+    }
 
     public static bool IsPartial(DateOnly date, DailyHistorySlice? slice, DateTimeOffset now)
     {
@@ -149,13 +171,17 @@ public static class DailyHistory
                 : contiguous && !uncertain && through == cursor
                     ? Coverage.CompleteToObservation : Coverage.Partial;
             var daily = Budgets.Calculate(snapshot)?.Daily;
-            output.Add(new(date, snapshot.Key, snapshot.PeriodId, snapshot.Plan, snapshot.Unit, snapshot.Window,
+            output.Add(new DailyHistorySlice(date, snapshot.Key, snapshot.PeriodId, snapshot.Plan, snapshot.Unit, snapshot.Window,
                 measurable.Length == 0 ? null : measurable.Sum(d => d.Amount!.Value),
                 daily * (decimal)(end - start).TotalDays, coverage,
                 observations.Length == 0 ? null : observations[0], through,
                 deltas.Where(d => d.Kind != DeltaKind.Consumption).Select(d => d.Kind).Distinct().ToArray(),
                 deltas.Any(d => d.Kind == DeltaKind.Consumption && (d.From < start || d.To > end)),
-                !contiguous));
+                !contiguous)
+            {
+                Cumulative = CumulativeAtEndOfDay(date, snapshot.Key, snapshot.PeriodId, through, group),
+                CumulativeCaptured = true
+            });
         }
         return output.OrderBy(s => s.Key.Account.Provider).ThenBy(s => s.Key.Account.Id)
             .ThenBy(s => s.Key.Bucket).ThenBy(s => s.PeriodId).ToArray();
