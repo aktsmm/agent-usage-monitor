@@ -506,7 +506,8 @@ public sealed class TrayHost
                                 break;
                             default: throw new UsageException(FailureKind.Forbidden, "ipc_method_not_allowed");
                         }
-                        response = new(true, View: CreateView(), History: historyResponse);
+                        response = new(true, View: request.Method == "history" ? null : CreateView(),
+                            History: historyResponse);
                     }
                     catch (UsageException ex) { response = new(false, ex.SafeCode); }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
