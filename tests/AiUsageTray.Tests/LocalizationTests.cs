@@ -63,6 +63,11 @@ static class LocalizationTests
             Equal("chat", ja.Bucket(new(claude, "chat")));
             Equal("unknown_bucket", en.Bucket(new(copilot, "unknown_bucket")));
             Equal("0.000000001", en.Number(0.000000001m, 2));
+            Equal("1,166.67", en.Number(1166.666m, 2));
+            Equal("1,166.7", ja.Number(1166.666m, 1));
+            Equal("0.5", en.Number(0.5m, 1));
+            True(en.Format(UiText.FixedAllocation, 1166.67m, 8166.69m, "credits").Contains("1,166.67") &&
+                en.Format(UiText.FixedAllocation, 1166.67m, 8166.69m, "credits").Contains("8,166.69"));
             Equal("121,006", en.Amount(121006m));
             Equal("1,234.5", en.Amount(1234.5m));
             Equal("0.000000001", en.Amount(0.000000001m));
