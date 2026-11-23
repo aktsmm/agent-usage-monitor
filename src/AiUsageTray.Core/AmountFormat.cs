@@ -6,7 +6,7 @@ public static class AmountFormat
 {
     /// <summary>
     /// Short, culture-independent form for narrow surfaces: 66,987 becomes 67k and 1,234,567 becomes 1.2M.
-    /// Values under 1,000 are shown as they are.
+    /// Very small nonzero values are shown as a bound rather than zero.
     /// </summary>
     public static string Compact(decimal value)
     {
@@ -15,6 +15,8 @@ public static class AmountFormat
         if (magnitude < 1000)
         {
             var rounded = Math.Round(magnitude, 1, MidpointRounding.AwayFromZero);
+            if (rounded == 0 && magnitude > 0)
+                return value < 0 ? ">-0.1" : "<0.1";
             if (rounded < 1000)
                 return sign + Trim(rounded);
         }

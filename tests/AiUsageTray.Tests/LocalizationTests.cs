@@ -74,6 +74,14 @@ static class LocalizationTests
             catch (UsageException ex) when (ex.Kind == FailureKind.Schema) { return; }
             throw new InvalidOperationException("Unknown resource key silently succeeded");
         });
+        Test("overlapping history observations explain the blocked save in both languages", () =>
+        {
+            const string code = "history_consumption_intervals_overlap";
+            var ja = new UiLocalizer(DisplayLanguage.Japanese).Error(code);
+            var en = new UiLocalizer(DisplayLanguage.English).Error(code);
+            True(ja.Contains("観測区間が重複") && ja.Contains("保存できません") && ja.Contains(code));
+            True(en.Contains("observation intervals overlap") && en.Contains("cannot be saved") && en.Contains(code));
+        });
         tests.Add(("manual language and explicit strip OFF persist without changing selected account", async () =>
         {
             var directory = Path.Combine(Path.GetTempPath(), "locale-test-" + Guid.NewGuid().ToString("N"));

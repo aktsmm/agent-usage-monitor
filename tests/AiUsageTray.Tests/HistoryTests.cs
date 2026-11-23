@@ -462,11 +462,25 @@ static class HistoryTests
             {
                 Window = new(WindowKind.Monthly, At.AddDays(-11), end.AddDays(1))
             };
-            await f.Store.AppendAsync(Record(end.AddMinutes(-5), end.AddMinutes(5), 10, snapshot: s), Gap, default);
+            var record = Record(end.AddMinutes(-5), end.AddMinutes(5), 10, snapshot: s);
+            await f.Store.AppendAsync(record, Gap, default);
             var days = await f.Store.QueryAsync(new(new(2026, 10, 31), new(2026, 11, 1), Key), default);
             Equal(2, days.Count);
             True(days.All(d => d.Slices.Single().UnallocatedBoundary));
             True(File.Exists(f.Store.SummaryPath(new(2026, 10, 31))) && File.Exists(f.Store.SummaryPath(new(2026, 11, 1))));
+            await f.Store.ArchiveAsync(new DateOnly(2026, 11, 1), end.AddMonths(1), default);
+            await f.Store.AppendAsync(record, Gap, default);
+            var replayed = await f.Store.QueryAsync(new(new(2026, 10, 31), new(2026, 11, 1), Key), default);
+            True(replayed.All(d => d.Slices.Single().UnallocatedBoundary));
+        });
+        TestFiles("history cross-day shards in one month retain both summaries on replay", async f =>
+        {
+            var record = Record(At.AddMinutes(-5), At.AddMinutes(5));
+            await f.Store.AppendAsync(record, Gap, default);
+            await f.Store.AppendAsync(record, Gap, default);
+            var days = await f.Store.QueryAsync(new(Day.AddDays(-1), Day, Key), default);
+            Equal(2, days.Count);
+            True(days.All(day => day.Slices.Count == 1 && day.Slices.Single().UnallocatedBoundary));
         });
         TestFiles("history foreign writer cannot overwrite a shared folder", async f =>
         {
@@ -495,7 +509,167 @@ static class HistoryTests
             True(File.Exists(Path.Combine(f.Store.Root, "months", "2026-10", "2026-10-12.json")));
             Equal<decimal?>(4, (await f.Store.QueryAsync(new(Day, Day, Key), default)).Single().Slices.Single().Observed);
             Equal(path, await f.Store.ArchiveAsync(Day, At.AddMonths(1), default));
+            await f.Store.AppendAsync(record, Gap, default);
+            Equal<decimal?>(4, (await f.Store.QueryAsync(new(Day, Day, Key), default)).Single().Slices.Single().Observed);
             await Reject(() => f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10)), Gap, default));
+        });
+        TestFiles("history sealed month rejection does not change catalog", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            await f.Store.ArchiveAsync(Day, At.AddMonths(1), default);
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var catalogBefore = await File.ReadAllBytesAsync(catalogPath);
+            var other = Snapshot(At.AddMinutes(10)) with
+            {
+                Key = new(AccountKey.FromIdentity(Provider.Codex, "sealed-new-account"), "other")
+            };
+            try
+            {
+                await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10), snapshot: other), Gap, default);
+                throw new InvalidOperationException("Expected sealed-month failure");
+            }
+            catch (UsageException ex) { Equal("history_archived_month_is_sealed", ex.SafeCode); }
+            var catalogAfter = await File.ReadAllBytesAsync(catalogPath);
+            True(catalogBefore.SequenceEqual(catalogAfter));
+            Equal(1, (await f.Store.CatalogAsync(default)).Items.Count);
+        });
+        TestFiles("history sealed month keeps pending journal without phantom catalog entry", async f =>
+        {
+            var service = await HistoryService.LoadAsync(f.Profile, default);
+            await service.RecordAsync([Record(At, At.AddMinutes(5))], Gap, default);
+            await service.ArchiveAsync(Day, At.AddMonths(1), default);
+            var other = Snapshot(At.AddMinutes(10)) with
+            {
+                Key = new(AccountKey.FromIdentity(Provider.Codex, "pending-sealed-account"), "other")
+            };
+            await service.RecordAsync([Record(At.AddMinutes(5), At.AddMinutes(10), snapshot: other)], Gap, default);
+            Equal(1, service.Status.PendingRecords);
+            Equal("history_archived_month_is_sealed", service.Status.Error);
+            True(!service.Status.Saved);
+            Equal(1, (await service.Store.CatalogAsync(default)).Items.Count);
+        });
+        TestFiles("history cross-month rejection leaves earlier shard and catalog unchanged", async f =>
+        {
+            var boundary = new DateTimeOffset(2026, 11, 1, 0, 0, 0, JapaneseCalendar.Offset);
+            var later = Snapshot(boundary.AddHours(1)) with
+            {
+                Window = new(WindowKind.Monthly, boundary.AddDays(-2), boundary.AddDays(40))
+            };
+            await f.Store.AppendAsync(Record(boundary.AddMinutes(55), boundary.AddHours(1), snapshot: later), Gap, default);
+            await f.Store.ArchiveAsync(new DateOnly(2026, 11, 1), boundary.AddMonths(1), default);
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var catalogBefore = await File.ReadAllBytesAsync(catalogPath);
+            var previousDay = new DateOnly(2026, 10, 31);
+            var crossing = later with { ObservedAt = boundary.AddMinutes(5) };
+            try
+            {
+                await f.Store.AppendAsync(Record(boundary.AddMinutes(-5), boundary.AddMinutes(5),
+                    snapshot: crossing), Gap, default);
+                throw new InvalidOperationException("Expected sealed-month failure");
+            }
+            catch (UsageException ex) { Equal("history_archived_month_is_sealed", ex.SafeCode); }
+            var catalogAfter = await File.ReadAllBytesAsync(catalogPath);
+            True(catalogBefore.SequenceEqual(catalogAfter));
+            True(!File.Exists(f.Store.SummaryPath(previousDay)));
+            True(!Directory.Exists(Path.GetDirectoryName(f.Store.SummaryPath(previousDay))));
+        });
+        TestFiles("history rejected overlapping intervals do not poison raw records", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(10)), Gap, default);
+            var rawPath = Path.Combine(f.Store.Root, "months", "2026-10", "2026-10-12.json");
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var rawBefore = await File.ReadAllBytesAsync(rawPath);
+            var catalogBefore = await File.ReadAllBytesAsync(catalogPath);
+            try
+            {
+                await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(15)), Gap, default);
+                throw new InvalidOperationException("Expected overlap failure");
+            }
+            catch (UsageException ex) { Equal("history_consumption_intervals_overlap", ex.SafeCode); }
+            var rawAfter = await File.ReadAllBytesAsync(rawPath);
+            var catalogAfter = await File.ReadAllBytesAsync(catalogPath);
+            True(rawBefore.SequenceEqual(rawAfter) && catalogBefore.SequenceEqual(catalogAfter));
+            await f.Store.AppendAsync(Record(At.AddMinutes(10), At.AddMinutes(15)), Gap, default);
+            Equal<decimal?>(2, (await f.Store.QueryAsync(new(Day, Day, Key), default)).Single().Slices.Single().Observed);
+        });
+        TestFiles("overlapping history stays pending across retry", async f =>
+        {
+            var service = await HistoryService.LoadAsync(f.Profile, default);
+            await service.RecordAsync([Record(At, At.AddMinutes(10))], Gap, default);
+            await service.RecordAsync([Record(At.AddMinutes(5), At.AddMinutes(15))], Gap, default);
+            Equal(1, service.Status.PendingRecords);
+            Equal("history_consumption_intervals_overlap", service.Status.Error);
+            True(!service.Status.Saved);
+            await service.RetryAsync(Gap, default);
+            Equal(1, service.Status.PendingRecords);
+            Equal("history_consumption_intervals_overlap", service.Status.Error);
+            Equal<decimal?>(1, (await service.Store.QueryAsync(new(Day, Day, Key), default)).Single().Slices.Single().Observed);
+        });
+        TestFiles("history invalid gap does not write raw or catalog", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var rawPath = Path.Combine(f.Store.Root, "months", "2026-10", "2026-10-12.json");
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var rawBefore = await File.ReadAllBytesAsync(rawPath);
+            var catalogBefore = await File.ReadAllBytesAsync(catalogPath);
+            try
+            {
+                await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10)), TimeSpan.Zero, default);
+                throw new InvalidOperationException("Expected gap validation failure");
+            }
+            catch (UsageException ex) { Equal("history_maximum_gap", ex.SafeCode); }
+            var rawAfter = await File.ReadAllBytesAsync(rawPath);
+            var catalogAfter = await File.ReadAllBytesAsync(catalogPath);
+            True(rawBefore.SequenceEqual(rawAfter) && catalogBefore.SequenceEqual(catalogAfter));
+        });
+        TestFiles("history corrupt summary rejection preserves raw and catalog", async f =>
+        {
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var rawPath = Path.Combine(f.Store.Root, "months", "2026-10", "2026-10-12.json");
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var summaryPath = f.Store.SummaryPath(Day);
+            var rawBefore = await File.ReadAllBytesAsync(rawPath);
+            var catalogBefore = await File.ReadAllBytesAsync(catalogPath);
+            var validSummary = await File.ReadAllTextAsync(summaryPath);
+            var invalidSummary = validSummary.Replace("\"Version\": 1", "\"Version\": 99");
+            await File.WriteAllTextAsync(summaryPath, invalidSummary);
+            try
+            {
+                await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10)), Gap, default);
+                throw new InvalidOperationException("Expected summary validation failure");
+            }
+            catch (UsageException ex) { Equal("history_month_summary_invalid", ex.SafeCode); }
+            var rawAfter = await File.ReadAllBytesAsync(rawPath);
+            var catalogAfter = await File.ReadAllBytesAsync(catalogPath);
+            True(rawBefore.SequenceEqual(rawAfter) && catalogBefore.SequenceEqual(catalogAfter));
+            Equal(invalidSummary, await File.ReadAllTextAsync(summaryPath));
+            await File.WriteAllTextAsync(summaryPath, validSummary);
+            await f.Store.AppendAsync(Record(At.AddMinutes(5), At.AddMinutes(10)), Gap, default);
+            Equal<decimal?>(2, (await f.Store.QueryAsync(new(Day, Day, Key), default)).Single().Slices.Single().Observed);
+        });
+        TestFiles("history later corrupt month does not write earlier cross-month shard", async f =>
+        {
+            var boundary = new DateTimeOffset(2026, 11, 1, 0, 0, 0, JapaneseCalendar.Offset);
+            var snapshot = Snapshot(boundary.AddHours(1)) with
+            {
+                Window = new(WindowKind.Monthly, boundary.AddDays(-2), boundary.AddDays(40))
+            };
+            await f.Store.AppendAsync(Record(boundary.AddMinutes(55), boundary.AddHours(1), snapshot: snapshot), Gap, default);
+            var catalogPath = Path.Combine(f.Store.Root, "catalog.json");
+            var before = await File.ReadAllBytesAsync(catalogPath);
+            var summaryPath = f.Store.SummaryPath(new DateOnly(2026, 11, 1));
+            var summary = await File.ReadAllTextAsync(summaryPath);
+            await File.WriteAllTextAsync(summaryPath, summary.Replace("\"Version\": 1", "\"Version\": 99"));
+            try
+            {
+                await f.Store.AppendAsync(Record(boundary.AddMinutes(-5), boundary.AddMinutes(5),
+                    snapshot: snapshot with { ObservedAt = boundary.AddMinutes(5) }), Gap, default);
+                throw new InvalidOperationException("Expected summary validation failure");
+            }
+            catch (UsageException ex) { Equal("history_month_summary_invalid", ex.SafeCode); }
+            var after = await File.ReadAllBytesAsync(catalogPath);
+            True(before.SequenceEqual(after));
+            True(!Directory.Exists(Path.GetDirectoryName(f.Store.SummaryPath(new DateOnly(2026, 10, 31)))));
         });
         TestFiles("history current month and cancelled archive never remove source", async f =>
         {

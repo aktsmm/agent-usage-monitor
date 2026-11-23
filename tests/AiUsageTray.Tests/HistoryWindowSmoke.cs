@@ -11,7 +11,7 @@ using AiUsageTray.Desktop;
 
 static class HistoryWindowSmoke
 {
-    public static Task RunAsync(string? outputFolder)
+    public static async Task RunAsync(string? outputFolder)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -26,6 +26,19 @@ static class HistoryWindowSmoke
                     ("BorderBrush", "#474747"), ("AccentBrush", "#FD8EA1"), ("WarningBrush", "#FBBF24")
                 })
                     app.Resources[name] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+                var labelMethod = typeof(MainWindow).GetMethod("CreateLabel",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+                    ?? throw new InvalidOperationException("Overview label factory is missing");
+                var amountLabel = (TextBlock)labelMethod.Invoke(null,
+                    ["0.0000000000000000000000000001 credits", 21d, true, Brushes.White])!;
+                amountLabel.Measure(new Size(180, double.PositiveInfinity));
+                if (amountLabel.TextWrapping != TextWrapping.Wrap || amountLabel.DesiredSize.Height < 40)
+                    throw new InvalidOperationException("Full-precision overview amount does not wrap");
+                var overviewError = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12,
+                    Text = new UiLocalizer(DisplayLanguage.English).Text(UiText.HistoryIntervalsOverlap) };
+                overviewError.Measure(new Size(180, double.PositiveInfinity));
+                if (overviewError.TextWrapping != TextWrapping.Wrap || overviewError.DesiredSize.Height < 30)
+                    throw new InvalidOperationException("Overview history error does not wrap");
                 var now = JapaneseCalendar.DayStart(DateTimeOffset.UtcNow);
                 var key = new QuotaKey(AccountKey.FromIdentity(Provider.Copilot, "synthetic-ui"), "monthly demo");
                 var otherKey = new QuotaKey(AccountKey.FromIdentity(Provider.Codex, "synthetic-ui-other"), "weekly demo");
@@ -129,10 +142,29 @@ static class HistoryWindowSmoke
                     return detailGate is { } gate && request.Offset == 0
                         ? WaitForDetailAsync(gate.Task, detailResponse) : Task.FromResult(detailResponse);
                 }) { ShowActivated = false };
+                Exception? testError = null;
                 window.Loaded += (_, _) => window.Dispatcher.BeginInvoke(async () =>
                 {
                     try
                     {
+                        var tabs = Descendants(window).OfType<TabControl>().Single();
+                        tabs.SelectedIndex = 1;
+                        window.UpdateLayout();
+                        window.SetStorageStatus(new HistoryStorageStatus(1, "history_consumption_intervals_overlap"));
+                        foreach (var language in new[] { DisplayLanguage.Japanese, DisplayLanguage.English })
+                        {
+                            window.SetLanguage(new UiLocalizer(language));
+                            var expected = language == DisplayLanguage.Japanese
+                                ? "観測区間が重複" : "observation intervals overlap";
+                            if (!Descendants(window).OfType<TextBlock>().Any(text =>
+                                text.Text.Contains(expected, StringComparison.Ordinal) &&
+                                text.Text.Contains("history_consumption_intervals_overlap", StringComparison.Ordinal)))
+                                throw new InvalidOperationException("Localized pending overlap status missing");
+                        }
+                        window.SetStorageStatus(new HistoryStorageStatus(0, null));
+                        window.SetLanguage(new UiLocalizer(DisplayLanguage.English));
+                        tabs.SelectedIndex = 0;
+                        window.UpdateLayout();
                         var overview = Descendants(window).OfType<ListBox>().Single(list =>
                             list.Items.OfType<ListBoxItem>().Any(item => item.Tag is HistoryOverviewItem));
                         var initialGraph = Descendants(window).OfType<Canvas>().Single();
@@ -429,19 +461,25 @@ static class HistoryWindowSmoke
                         if (lastQuery is null || lastQuery.From != new DateOnly(9999, 12, 1) ||
                             lastQuery.Through != DateOnly.MaxValue)
                             throw new InvalidOperationException("Last representable month was not queried");
-                        completion.SetResult();
                     }
-                    catch (Exception ex) { completion.SetException(ex); }
+                    catch (Exception ex) { testError = ex; }
                     finally { window.Close(); app.Shutdown(); }
                 });
                 app.Run(window);
+                if (testError is null) completion.TrySetResult();
+                else completion.TrySetException(testError);
             }
             catch (Exception ex) { completion.TrySetException(ex); }
         });
         thread.IsBackground = true;
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        return completion.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        try { await completion.Task.WaitAsync(TimeSpan.FromSeconds(20)); }
+        finally
+        {
+            if (!thread.Join(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("History window test thread did not terminate");
+        }
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

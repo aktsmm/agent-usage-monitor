@@ -36,6 +36,249 @@ static class UnlimitedQuotaTests
             Equal("-1.2k", AmountFormat.Compact(-1234));
         });
 
+        test("small nonzero unlimited usage stays visible in the strip and detailed amounts", () =>
+        {
+            Equal("<0.1", AmountFormat.Compact(0.004m));
+            Equal(">-0.1", AmountFormat.Compact(-0.004m));
+            var snapshot = Unlimited("lab", "premium", 0.004m);
+            var settings = new DesktopSettings { CopilotEnabled = true, GithubLogin = "lab",
+                GithubPinnedAccount = snapshot.Key.Account.Id };
+            foreach (var language in new[] { DisplayLanguage.Japanese, DisplayLanguage.English })
+            {
+                var locale = new UiLocalizer(language);
+                var strip = UsageStripPresentation.Create(settings with { Language = language }, [snapshot],
+                    now, TimeSpan.FromMinutes(10));
+                Check(strip.Text == "Copilot <0.1" && strip.Tooltip.Contains("0.004"), "strip and tooltip");
+                Check(locale.UnlimitedHeadline(snapshot).Contains("0.004"), "unlimited headline");
+                Check(locale.Format(UiText.ScalarWithoutDenominator, 0.004m, locale.Unit(UsageUnit.Credits))
+                    .Contains("0.004"), "scalar value");
+                Check(locale.Format(UiText.CreditsApiValue, 0.004m).Contains("0.004"), "API credits");
+                Check(locale.UnlimitedHeadline(snapshot with { Used = 0.0000000000000000000000000001m })
+                    .Contains("0.0000000000000000000000000001"), "full decimal precision");
+            }
+        });
+
+        test("fractional amount-step notifications report the actual threshold", () =>
+        {
+            var state = new UsageState { Rules = new NotificationRules { AmountStep = 0.001m } };
+            var notice = UsageEngine.Apply(state, new FetchResult([Unlimited("lab", "premium", 0.004m)], []), now).Single();
+            Equal(0.004m, notice.CrossedLevels[^1]);
+            foreach (var language in new[] { DisplayLanguage.Japanese, DisplayLanguage.English })
+            {
+                var locale = new UiLocalizer(language);
+                var message = locale.Format(UiText.NotificationAmount, "lab", "premium",
+                    notice.CrossedLevels[^1], locale.Unit(UsageUnit.Credits));
+                Check(message.Contains("0.004"), "fractional notification threshold");
+            }
+        });
+
+        test("amount-step notifications continue past the 32-bit milestone count", () =>
+        {
+            var state = new UsageState { Rules = new NotificationRules { AmountStep = 0.01m } };
+            const decimal value = 21_474_836.48m;
+            var first = UsageEngine.Apply(state, new FetchResult([Unlimited("lab", "premium", value)], []), now).Single();
+            Equal((int)NotificationRules.MaximumAmountLevels, first.CrossedLevels.Length);
+            Equal(value, first.CrossedLevels[^1]);
+            var later = UsageEngine.Apply(state,
+                new FetchResult([Unlimited("lab", "premium", value + 0.01m, now.AddMinutes(5))], []),
+                now.AddMinutes(5)).Single();
+            Check(later.CrossedLevels.SequenceEqual([value + 0.01m]), "later threshold fires once");
+        });
+
+        test("fine but representable amount milestones use an exact floor", () =>
+        {
+            var state = new UsageState
+            {
+                Rules = new NotificationRules { AmountStep = 0.0000000000000000000000000003m }
+            };
+            var snapshot = Unlimited("lab", "premium", 1m);
+            var notice = UsageEngine.Apply(state, new FetchResult([snapshot], []), now).Single();
+            Equal(0.9999999999999999999999999999m, notice.CrossedLevels[^1]);
+            Check(!UsageEngine.AmountNotificationsUnavailable(state, snapshot), "representable levels remain enabled");
+            Check(UsageEngine.Apply(state, new FetchResult([snapshot with { ObservedAt = now.AddMinutes(5) }], []),
+                now.AddMinutes(5)).Count == 0, "fine milestones deduplicate");
+        });
+
+        test("legacy amount notices migrate without suppressing skipped lower milestones", () =>
+        {
+            var state = new UsageState { Rules = new NotificationRules { AmountStep = 1m } };
+            var legacy = UsageEngine.Apply(state, new([Unlimited("lab", "premium", 1000m)], []), now).Single();
+            state.Notifications = [legacy];
+            state = JsonSerializer.Deserialize<UsageState>(
+                JsonSerializer.Serialize(state, StateStore.JsonOptions), StateStore.JsonOptions)!;
+            var same = Unlimited("lab", "premium", 1000m, now.AddMinutes(5));
+            Check(UsageEngine.Apply(state, new([same], []), same.ObservedAt).Count == 0, "legacy keys suppress duplicates");
+            Check(state.Notifications.Single().AmountMilestoneRanges is { Length: 1 }, "legacy keys compacted");
+            var lower = same with { Used = 900m, ObservedAt = now.AddMinutes(10) };
+            Check(UsageEngine.Apply(state, new([lower], []), lower.ObservedAt).Count == 0, "decrease is adjustment");
+            var increase = lower with { Used = 901m, ObservedAt = now.AddMinutes(15) };
+            var earlier = UsageEngine.Apply(state, new([increase], []), increase.ObservedAt).Single();
+            Check(earlier.CrossedLevels.First() == 702m && earlier.CrossedLevels.Last() == 800m,
+                "previously skipped milestones are not suppressed");
+            var back = increase with { Used = 1000m, ObservedAt = now.AddMinutes(20) };
+            Check(UsageEngine.Apply(state, new([back], []), back.ObservedAt).Count == 0, "re-rise stays deduplicated");
+            state.Rules = state.Rules with { AmountStep = 2m };
+            var newRule = back with { ObservedAt = now.AddMinutes(25) };
+            Check(UsageEngine.Apply(state, new([newRule], []), newRule.ObservedAt).Count == 1, "changed step is independent");
+            state.Rules = state.Rules with { AmountStep = 1m };
+            var restoredRule = back with { Used = 1001m, ObservedAt = now.AddMinutes(30) };
+            Check(UsageEngine.Apply(state, new([restoredRule], []), restoredRule.ObservedAt).Single()
+                .CrossedLevels.SequenceEqual([1001m]), "restored step retains its own record");
+            var other = Unlimited("other", "premium", 1001m, now.AddMinutes(35));
+            Check(UsageEngine.Apply(state, new([other], []), other.ObservedAt).Count == 1, "account isolation");
+            var newPeriod = restoredRule with { ObservedAt = end.AddMinutes(5),
+                Window = new(WindowKind.Monthly, end, end.AddMonths(1)) };
+            Check(UsageEngine.Apply(state, new([newPeriod], []), newPeriod.ObservedAt)
+                .Any(n => n.Reason == NotificationReason.AmountStep), "new period independent");
+        });
+
+        test("fine amount milestones remain compact across polling and restart", () =>
+        {
+            var state = new UsageState { Rules = new NotificationRules { AmountStep = 0.000000000001m } };
+            var original = new List<NotificationCandidate>();
+            for (int i = 1; i <= 288; i++)
+            {
+                var at = now.AddMinutes(5 * i);
+                var snapshot = Unlimited("lab", "premium", i * 0.01m, at);
+                original.Add(UsageEngine.Apply(state, new([snapshot], []), at).Single());
+            }
+            var compactBytes = JsonSerializer.SerializeToUtf8Bytes(state.Notifications, StateStore.CompactFileOptions).Length;
+            var legacyBytes = JsonSerializer.SerializeToUtf8Bytes(original, StateStore.CompactFileOptions).Length;
+            Check(state.Notifications.Count == 1 && compactBytes < 40_000 && compactBytes * 20 < legacyBytes,
+                $"288 polls store bounded ranges ({compactBytes} vs {legacyBytes} bytes)");
+            var folder = Path.Combine(Path.GetTempPath(), "amount-range-test-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var path = Path.Combine(folder, "state.json");
+                using (var store = new StateStore(path)) store.SaveAsync(state, default).GetAwaiter().GetResult();
+                using (var store = new StateStore(path)) state = store.LoadAsync(default).GetAwaiter().GetResult();
+                var same = Unlimited("lab", "premium", 2.88m, now.AddMinutes(5 * 289));
+                Check(UsageEngine.Apply(state, new([same], []), same.ObservedAt).Count == 0,
+                    "saved ranges prevent duplicate after restart");
+                var next = same with { Used = 2.89m, ObservedAt = now.AddMinutes(5 * 290) };
+                Check(UsageEngine.Apply(state, new([next], []), next.ObservedAt).Single().CrossedLevels.Length == 200,
+                    "new disjoint levels notify after restart");
+            }
+            finally { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+        });
+
+        test("compacted amount ranges match individual keys over changes and restarts", () =>
+        {
+            var state = new UsageState();
+            var seen = new HashSet<(QuotaKey Key, decimal Step, decimal Level)>();
+            var previous = new Dictionary<QuotaKey, decimal>();
+            var random = new Random(1702);
+            decimal[] steps = [0.01m, 0.1m, 1m];
+            for (int i = 0; i < 1000; i++)
+            {
+                var at = now.AddMinutes(i);
+                var step = steps[random.Next(steps.Length)];
+                var snapshot = Unlimited(i % 2 == 0 ? "lab" : "work", "premium", random.Next(5000) / 100m, at);
+                state.Rules = state.Rules with { AmountStep = step };
+                int reached = (int)decimal.Floor(snapshot.Used!.Value / step);
+                var expected = new List<decimal>();
+                if (!previous.TryGetValue(snapshot.Key, out var old) || snapshot.Used >= old)
+                    for (int level = Math.Max(1, reached - 199); level <= reached; level++)
+                        if (seen.Add((snapshot.Key, step, level * step))) expected.Add(level * step);
+                previous[snapshot.Key] = snapshot.Used.Value;
+                var actual = UsageEngine.Apply(state, new([snapshot], []), at);
+                Check(actual.SelectMany(n => n.CrossedLevels).SequenceEqual(expected),
+                    $"individual-key behavior at observation {i}");
+                if (i % 100 == 99)
+                    state = JsonSerializer.Deserialize<UsageState>(
+                        JsonSerializer.Serialize(state, StateStore.JsonOptions), StateStore.JsonOptions)!;
+            }
+        });
+
+        test("invalid compact notification ranges are rejected instead of losing deduplication", () =>
+        {
+            var state = new UsageState { Rules = new NotificationRules { AmountStep = 1m } };
+            UsageEngine.Apply(state, new([Unlimited("lab", "premium", 10m)], []), now);
+            state.Notifications[0] = state.Notifications[0] with
+                { AmountMilestoneRanges = [new("10", "9")] };
+            try { state.Validate(); }
+            catch (UsageException ex) when (ex.Kind == FailureKind.Storage) { return; }
+            throw new InvalidOperationException("Invalid range was accepted");
+        });
+
+        test("unrepresentable amount milestones stop only their notifications and retain usage", () =>
+        {
+            const decimal step = 0.0000000000000000000000000003m;
+            var firstSnapshot = Unlimited("lab", "premium", 20m);
+            var otherSnapshot = Unlimited("work", "premium", 20m);
+            var state = new UsageState
+            {
+                Rules = new NotificationRules { AmountStep = 10m },
+                QuotaRules = [new(firstSnapshot.Key, new NotificationRules { AmountStep = step })]
+            };
+            var first = UsageEngine.Apply(state, new FetchResult([firstSnapshot, otherSnapshot], []), now);
+            Check(first.Count == 1 && first[0].Key == otherSnapshot.Key, "other quota still notifies");
+            Check(state.Latest.Count == 2 && state.Deltas.Count == 2, "both usage snapshots recorded");
+            var limited = Limited("lab", 50m) with { Key = new(firstSnapshot.Key.Account, "limited") };
+            Check(!QuotaVisibility.HideUnlimitedPerAccount([firstSnapshot, limited])
+                .Any(snapshot => snapshot.Key == firstSnapshot.Key), "affected unlimited quota is hidden in mixed accounts");
+            state.Latest.Add(limited);
+            var account = new AccountEntry(new AccountProfile { Provider = Provider.Copilot, Login = "lab",
+                PinnedAccount = firstSnapshot.Key.Account.Id }, new AccountPreference(), "visible-lab", true);
+            var localeJa = new UiLocalizer(DisplayLanguage.Japanese);
+            var warning = AccountOverview.AmountWarnings(state, Provider.Copilot, localeJa, [account]).Single();
+            Check(warning.Contains(firstSnapshot.Key.Bucket) && warning.Contains(account.Name),
+                "hidden unlimited quota warning is still shown");
+            var hiddenWarning = AccountOverview.AmountWarnings(state, Provider.Copilot, localeJa,
+                [account with { Preference = new AccountPreference { Visible = false } }]).Single();
+            Check(hiddenWarning == localeJa.Text(UiText.AmountHiddenNotificationPrecisionWarning) &&
+                !hiddenWarning.Contains(account.Name) && !hiddenWarning.Contains(firstSnapshot.Key.Bucket),
+                "hidden account warning does not expose identity or quota");
+            state.Latest.Remove(limited);
+            Check(UsageEngine.AmountNotificationsUnavailable(state, firstSnapshot), "affected quota shows warning");
+            Check(!UsageEngine.AmountNotificationsUnavailable(state, otherSnapshot), "other quota has no warning");
+            foreach (var language in new[] { DisplayLanguage.Japanese, DisplayLanguage.English })
+            {
+                var locale = new UiLocalizer(language);
+                Check(locale.AmountNotificationWarning(state, firstSnapshot)?.Contains(firstSnapshot.Key.Bucket) == true,
+                    "localized warning identifies quota");
+                Check(locale.AmountNotificationWarning(state, otherSnapshot) is null, "unaffected quota has no warning");
+            }
+            var later = firstSnapshot with { Used = 21m, ObservedAt = now.AddMinutes(5) };
+            var notifications = UsageEngine.Apply(state, new FetchResult([later], []), now.AddMinutes(5));
+            Check(notifications.Count == 0, "no inexact notifications");
+            Check(state.Latest.Single(s => s.Key == firstSnapshot.Key).Used == 21m, "latest usage updated");
+            var records = DailyHistory.Import(state);
+            Check(records.Any(record => record.Delta.Key == firstSnapshot.Key &&
+                record.Delta.Amount == 1m), "history retained");
+            var folder = Path.Combine(Path.GetTempPath(), "amount-step-test-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var service = HistoryService.LoadAsync(folder, default).GetAwaiter().GetResult();
+                service.RecordAsync(records, state.Polling.MaximumAge, default).GetAwaiter().GetResult();
+                var day = JapaneseCalendar.Date(now);
+                var history = service.Store.QueryAsync(new(day, day, firstSnapshot.Key), default)
+                    .GetAwaiter().GetResult();
+                Check(history.Single().Slices.Single().Observed == 1m && service.Status.PendingRecords == 0,
+                    "history saved and read back for affected quota");
+            }
+            finally { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+            state.QuotaRules[0] = new(firstSnapshot.Key, new NotificationRules { AmountStep = step }, Enabled: false);
+            Check(!UsageEngine.AmountNotificationsUnavailable(state, later), "disabled quota has no warning");
+            state.QuotaRules[0] = new(firstSnapshot.Key, new NotificationRules { AmountStep = 10m });
+            Check(!UsageEngine.AmountNotificationsUnavailable(state, later), "warning clears after step changes");
+            Check(new UiLocalizer(DisplayLanguage.English).AmountNotificationWarning(state, later) is null,
+                "localized warning clears after step changes");
+            var recovered = UsageEngine.Apply(state, new FetchResult([later with
+                { Used = 30m, ObservedAt = now.AddMinutes(10) }], []), now.AddMinutes(10));
+            Check(recovered.Single().CrossedLevels[^1] == 30m, "notifications recover after step changes");
+        });
+
+        test("overflowing amount milestone count does not stop usage monitoring", () =>
+        {
+            var state = new UsageState { Rules = new NotificationRules { AmountStep = 0.1m } };
+            var snapshot = Unlimited("lab", "premium", decimal.MaxValue);
+            var notices = UsageEngine.Apply(state, new FetchResult([snapshot], []), now);
+            Check(notices.Count == 0, "no unrepresentable notification");
+            Check(UsageEngine.AmountNotificationsUnavailable(state, snapshot), "overflow warning is visible");
+            Check(state.Latest.Single() == snapshot && state.Deltas.Count == 1, "usage remains recorded");
+        });
+
         test("strip shows the compact amount for an account that only reports unlimited quotas", () =>
         {
             var settings = new DesktopSettings { CopilotEnabled = true, GithubLogin = "lab",

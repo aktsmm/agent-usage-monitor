@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace AiUsageTray.Core;
 
@@ -84,9 +86,15 @@ public sealed record ConsumptionSummary(decimal? Measured, decimal? Guidance,
     Coverage Coverage, UsageUnit Unit, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
     DateTimeOffset? ObservedThrough);
 
+public sealed record AmountMilestoneRange(string First, string Last);
+
 public sealed record NotificationCandidate(string Id, QuotaKey Key, string PeriodId,
     string RuleId, NotificationReason Reason, DateTimeOffset CreatedAt,
-    decimal[] CrossedLevels, string[] DeduplicationKeys, Coverage? Coverage = null);
+    decimal[] CrossedLevels, string[] DeduplicationKeys, Coverage? Coverage = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AmountMilestoneRange[]? AmountMilestoneRanges { get; init; }
+}
 
 public sealed record NotificationRules
 {
@@ -155,6 +163,23 @@ public sealed class UsageState
             throw new UsageException(FailureKind.Storage, "Duplicate provider bindings.");
         foreach (var rule in QuotaRules) rule.Rules.Validate();
         foreach (var snapshot in Latest.Concat(Baselines)) snapshot.Validate();
+        foreach (var notification in Notifications.Where(n => n.AmountMilestoneRanges is not null))
+        {
+            if (notification.Reason != NotificationReason.AmountStep ||
+                notification.CrossedLevels is not { Length: 0 } ||
+                notification.DeduplicationKeys is not { Length: 0 } ||
+                notification.AmountMilestoneRanges!.Length == 0 ||
+                notification.AmountMilestoneRanges.Any(r => r is null ||
+                    !ValidMilestone(r.First, out var first) || !ValidMilestone(r.Last, out var last) || first > last))
+                throw new UsageException(FailureKind.Storage, "Invalid amount notification ranges.");
+        }
+    }
+
+    private static bool ValidMilestone(string? value, out BigInteger index)
+    {
+        index = 0;
+        return value is { Length: > 0 and <= 57 } &&
+            BigInteger.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out index) && index > 0;
     }
 
     public void Bind(Provider provider, string selectionId, IReadOnlySet<string>? keepAccounts = null)

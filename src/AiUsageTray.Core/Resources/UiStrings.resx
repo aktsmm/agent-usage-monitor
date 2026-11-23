@@ -119,6 +119,7 @@ Copy → verify hashes and content → switch. Keep the source; never overwrite 
   <data name="CurrentMonthArchive" xml:space="preserve"><value>The current month cannot be archived yet.</value></data>
   <data name="PendingArchive" xml:space="preserve"><value>Resend pending records before archiving.</value></data>
   <data name="ArchivedMonthSealed" xml:space="preserve"><value>The month is already archived. Its ZIP was not overwritten.</value></data>
+  <data name="HistoryIntervalsOverlap" xml:space="preserve"><value>History cannot be saved because observation intervals overlap. Keep the existing history and check the cause of the pending records.</value></data>
   <data name="NoMonthRecorded" xml:space="preserve"><value>No history was recorded for this month.</value></data>
   <data name="NoRawRecorded" xml:space="preserve"><value>No raw records are available for this month.</value></data>
   <data name="ArchiveInvalid" xml:space="preserve"><value>Archive verification failed. Original records were retained.</value></data>
@@ -193,8 +194,8 @@ Check only: {0}</value></data>
   <data name="ShortQuota" xml:space="preserve"><value>Short-term quota</value></data>
   <data name="UnknownQuotaWindow" xml:space="preserve"><value>Quota period unknown</value></data>
   <data name="QuotaDetails" xml:space="preserve"><value>Source &amp; quota details</value></data>
-  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.##} {1} · Total unknown</value></data>
-  <data name="CreditsApiValue" xml:space="preserve"><value>credits_used (API): {0:0.##} · No conversion or quota aggregation</value></data>
+  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.############################} {1} · Total unknown</value></data>
+  <data name="CreditsApiValue" xml:space="preserve"><value>credits_used (API): {0:0.############################} · No conversion or quota aggregation</value></data>
   <data name="MainSubtitle" xml:space="preserve"><value>Quota usage and daily/weekly guidance</value></data>
   <data name="UpdateIdle" xml:space="preserve"><value>App updates have not been checked yet.</value></data>
   <data name="UpdateDisabled" xml:space="preserve"><value>Automatic updates are disabled. Manual checking is available.</value></data>
@@ -335,9 +336,11 @@ Shown after quota total and period are available.</value></data>
   <data name="DetectionConditions" xml:space="preserve"><value>What can be detected: GitHub CLI logins (successful status only). Codex and Claude are not detected automatically; enter their paths yourself.</value></data>
   <data name="VscodeBridgeNotInstalled" xml:space="preserve"><value>No VS Code connection data exists yet. Install the companion extension (integrations/vscode), then run “Agent Usage Monitor: Connect GitHub accounts” in VS Code.</value></data>
   <data name="AccountNoData" xml:space="preserve"><value>No usage value yet. It appears after the first successful fetch; if it stays empty, check that the account is still signed in.</value></data>
-  <data name="UnlimitedUsage" xml:space="preserve"><value>Unlimited · usage this period {0:#,0.##} {1}</value></data>
-  <data name="NotificationAmount" xml:space="preserve"><value>{0} · {1}: reported usage reached {2:#,0.##} {3}.</value></data>
+  <data name="UnlimitedUsage" xml:space="preserve"><value>Unlimited · usage this period {0:#,0.############################} {1}</value></data>
+  <data name="NotificationAmount" xml:space="preserve"><value>{0} · {1}: reported usage reached {2:#,0.############################} {3}.</value></data>
   <data name="AmountStepInput" xml:space="preserve"><value>Step for unlimited quotas (reported credits / AIC; leave empty to disable)</value></data>
+  <data name="AmountNotificationPrecisionWarning" xml:space="preserve"><value>Usage notifications for “{0}” are paused because the step is too small to represent the thresholds exactly. Increase the step or disable notifications in Settings. Usage collection and history recording continue.</value></data>
+  <data name="AmountHiddenNotificationPrecisionWarning" xml:space="preserve"><value>Usage notifications for a hidden account are paused because the step is too small. Make the account visible in Settings to investigate. Usage collection and history recording continue.</value></data>
   <data name="AccountAlreadyConfigured" xml:space="preserve"><value>This account is already configured.</value></data>
   <data name="FindVscodeAccounts" xml:space="preserve"><value>Find VS Code accounts</value></data>
   <data name="VscodeBridgeHelp" xml:space="preserve"><value>Run “Agent Usage Monitor: Connect GitHub accounts” in VS Code first. The extension stores only account identity and quota values locally; tokens stay in VS Code.</value></data>

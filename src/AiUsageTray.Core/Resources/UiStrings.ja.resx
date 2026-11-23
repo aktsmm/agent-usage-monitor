@@ -119,6 +119,7 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="CurrentMonthArchive" xml:space="preserve"><value>現在月はまだアーカイブできません。</value></data>
   <data name="PendingArchive" xml:space="preserve"><value>保存待ちデータを再送してからアーカイブしてください。</value></data>
   <data name="ArchivedMonthSealed" xml:space="preserve"><value>この月はアーカイブ済みです。既存ZIPは上書きしていません。</value></data>
+  <data name="HistoryIntervalsOverlap" xml:space="preserve"><value>観測区間が重複したため履歴を保存できません。既存の履歴を保持し、保存待ちデータの原因を確認してください。</value></data>
   <data name="NoMonthRecorded" xml:space="preserve"><value>この月の履歴は記録されていません。</value></data>
   <data name="NoRawRecorded" xml:space="preserve"><value>この月のraw記録がありません。</value></data>
   <data name="ArchiveInvalid" xml:space="preserve"><value>アーカイブ検証に失敗しました。元データは保持します。</value></data>
@@ -193,8 +194,8 @@ ZIP作成後も元rawと月別集計を残します。自動削除はありま�
   <data name="ShortQuota" xml:space="preserve"><value>短期枠</value></data>
   <data name="UnknownQuotaWindow" xml:space="preserve"><value>期間未確認の枠</value></data>
   <data name="QuotaDetails" xml:space="preserve"><value>取得元・枠の詳細</value></data>
-  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.##} {1} · 分母未取得</value></data>
-  <data name="CreditsApiValue" xml:space="preserve"><value>credits_used（API値）{0:0.##} · 単位換算・枠の合算なし</value></data>
+  <data name="ScalarWithoutDenominator" xml:space="preserve"><value>{0:0.############################} {1} · 分母未取得</value></data>
+  <data name="CreditsApiValue" xml:space="preserve"><value>credits_used（API値）{0:0.############################} · 単位換算・枠の合算なし</value></data>
   <data name="MainSubtitle" xml:space="preserve"><value>使用量・残量と、日・週の目安</value></data>
   <data name="UpdateIdle" xml:space="preserve"><value>アプリ更新はまだ確認していません。</value></data>
   <data name="UpdateDisabled" xml:space="preserve"><value>自動更新は無効です。手動の更新確認を利用できます。</value></data>
@@ -335,9 +336,11 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="DetectionConditions" xml:space="preserve"><value>検出できるもの: GitHub CLIのログイン（状態が成功のみ）。CodexとClaudeは自動検出しないため、パスを自分で指定してください。</value></data>
   <data name="VscodeBridgeNotInstalled" xml:space="preserve"><value>VS Codeの連携データがまだありません。連携拡張（integrations/vscode）をインストールし、VS Codeで「Agent Usage Monitor: Connect GitHub accounts」を実行してください。</value></data>
   <data name="AccountNoData" xml:space="preserve"><value>使用量の値がまだありません。最初の取得に成功すると表示されます。表示されないままの場合は、アカウントがログイン中か確認してください。</value></data>
-  <data name="UnlimitedUsage" xml:space="preserve"><value>上限なし · 今期の使用量 {0:#,0.##} {1}</value></data>
-  <data name="NotificationAmount" xml:space="preserve"><value>{0} · {1}: 報告された使用量が{2:#,0.##} {3}に達しました。</value></data>
+  <data name="UnlimitedUsage" xml:space="preserve"><value>上限なし · 今期の使用量 {0:#,0.############################} {1}</value></data>
+  <data name="NotificationAmount" xml:space="preserve"><value>{0} · {1}: 報告された使用量が{2:#,0.############################} {3}に達しました。</value></data>
   <data name="AmountStepInput" xml:space="preserve"><value>上限なし枠の刻み（報告クレジット＝AIC。空欄で無効）</value></data>
+  <data name="AmountNotificationPrecisionWarning" xml:space="preserve"><value>枠「{0}」の使用量通知は、刻みが細かすぎるため停止しています。設定で刻みを大きくするか通知を無効にしてください。使用量の取得と履歴の記録は続きます。</value></data>
+  <data name="AmountHiddenNotificationPrecisionWarning" xml:space="preserve"><value>非表示のアカウントで、刻みが細かすぎるため使用量通知を停止しています。設定でアカウントを表示して確認してください。使用量の取得と履歴の記録は続きます。</value></data>
   <data name="AccountAlreadyConfigured" xml:space="preserve"><value>このアカウントはすでに設定されています。</value></data>
   <data name="FindVscodeAccounts" xml:space="preserve"><value>VS Codeのアカウントを検出</value></data>
   <data name="VscodeBridgeHelp" xml:space="preserve"><value>先にVS Codeで「Agent Usage Monitor: Connect GitHub accounts」を実行してください。拡張機能はアカウント情報と枠の数値だけをローカル保存し、tokenはVS Code内に保持します。</value></data>

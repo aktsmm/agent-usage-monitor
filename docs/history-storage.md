@@ -76,8 +76,13 @@ archives/
 pending件数と安全なerror codeを返します。保存済みと偽りません。
 rawとsummaryをatomic replacementしてからlocal receiptを保存し、確認済みqueue entryだけを
 消します。raw保存直後のcrashはrecord IDによる再送でsummaryを修復します。
+書き込み前に対象日の封印済みarchive、観測区間の重複、既存summaryを検証し、
+これらの事前検証に失敗した場合はcatalog・raw・summaryを変更しません。複数ファイルへの保存は
+一括transactionではなく、I/O障害や中断後はjournalから再送を試みます。
 同じrecordの再送を二重加算しません。同期中の破損・conflictは自動修復で上書きせず止めます。
 履歴directoryが消えた場合も空のdirectoryを勝手に再作成して成功扱いしません。
+観測区間の重複では `history_consumption_intervals_overlap` を表示し、該当recordを保存待ちに
+残します。単純な再送では解消しないため、既存履歴とlocal journalを削除せず原因を確認してください。
 
 ## アーカイブと保持
 
