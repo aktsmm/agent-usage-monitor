@@ -118,6 +118,14 @@ public partial class MainWindow : Window
                 content.Children.Add(Label(missing.Name, 13, true));
                 content.Children.Add(Label(locale.Text(UiText.AccountNoData), 11));
             }
+            foreach (var warning in AccountOverview.AmountWarnings(app.State, provider, locale, app.Settings.Accounts()))
+            {
+                content.Children.Add(new TextBlock
+                {
+                    Text = warning,
+                    Foreground = (Brush)FindResource("WarningBrush"), TextWrapping = TextWrapping.Wrap
+                });
+            }
             if (failure is not null)
                 content.Children.Add(new TextBlock
                 {
@@ -144,7 +152,7 @@ public partial class MainWindow : Window
     {
         Text = text, FontSize = size, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
         Foreground = (Brush)FindResource(bold ? "TextBrush" : "MutedBrush"),
-        Margin = new Thickness(0, 3, 0, 3)
+        Margin = new Thickness(0, 3, 0, 3), TextWrapping = TextWrapping.Wrap
     };
     internal static string Unit(UsageUnit unit) => unit switch
     { UsageUnit.PercentagePoints => "pt", UsageUnit.Credits => "クレジット", UsageUnit.Requests => "回", _ => "単位不明" };

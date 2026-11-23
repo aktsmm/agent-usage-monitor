@@ -26,7 +26,7 @@ public enum UiText
     InvalidHistoryData, HistoryTooLarge, HistoryResponseTooLarge, WriterMismatch, ExistingHistoryUnavailable,
     MigrationOverlap, MigrationConflict, MigrationStale, MigrationExtraFiles, MigrationSpace,
     MigrationNotReady, MigrationVerifyFailed, CurrentMonthArchive, PendingArchive,
-    ArchivedMonthSealed, NoMonthRecorded, NoRawRecorded, ArchiveInvalid,
+    ArchivedMonthSealed, HistoryIntervalsOverlap, NoMonthRecorded, NoRawRecorded, ArchiveInvalid,
     StorageUnavailable, LocalJournalUnavailable, UnsupportedLinkedFolder,
     Notifications, Connections, AppearanceStartup, UsedRemaining, Stale, Fetched, LastConfirmed,
     UnknownUsage, Unlimited, ResetAt, ResetUnknown, Daily, Weekly, GuidanceExceedance,
@@ -65,7 +65,8 @@ public enum UiText
     AccountLocalStorageNote, AccountSettingsInvalid, FindGithubAccounts, GithubCandidates,
     GithubActive, GithubNoNewAccounts, AccountAlreadyConfigured, FindVscodeAccounts,
     VscodeBridgeHelp, VscodeNoNewAccounts, DetectionConditions, VscodeBridgeNotInstalled, AccountNoData,
-    UnlimitedUsage, NotificationAmount, AmountStepInput, ServiceLabelInput,
+    UnlimitedUsage, NotificationAmount, AmountStepInput, AmountNotificationPrecisionWarning,
+    AmountHiddenNotificationPrecisionWarning, ServiceLabelInput,
     HistoryOverview, HistoryOverviewHint, HistoryOverviewEmpty, HistoryOverviewMeasured,
     HistoryOverviewUnmeasured, HistoryOverviewPartial, HistoryGraphZero, HistoryGraphNoData,
     HistoryOverviewChanged, HistoryGraphGuidanceAbove, HistoryPeriodDenominator, HistoryOverviewFallback, HistoryShowGraph
@@ -118,6 +119,10 @@ public sealed class UiLocalizer
             ? Format(UiText.UnlimitedUsage, amount, Unit(snapshot.Unit))
             : Text(UiText.Unlimited);
 
+    public string? AmountNotificationWarning(UsageState state, QuotaSnapshot snapshot) =>
+        UsageEngine.AmountNotificationsUnavailable(state, snapshot)
+            ? Format(UiText.AmountNotificationPrecisionWarning, snapshot.Key.Bucket) : null;
+
     public string Unit(UsageUnit unit) => Text(unit switch
     {
         UsageUnit.PercentagePoints => UiText.PercentagePoints,
@@ -152,6 +157,7 @@ public sealed class UiLocalizer
             "history_current_month_cannot_archive" => UiText.CurrentMonthArchive,
             "history_archive_pending_records" => UiText.PendingArchive,
             "history_archived_month_is_sealed" => UiText.ArchivedMonthSealed,
+            "history_consumption_intervals_overlap" => UiText.HistoryIntervalsOverlap,
             "history_month_not_recorded" => UiText.NoMonthRecorded,
             "history_month_raw_missing" => UiText.NoRawRecorded,
             "history_reparse_point_not_supported" => UiText.UnsupportedLinkedFolder,

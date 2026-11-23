@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using AiUsageTray.Core;
 
 /// <summary>Guards that the UI stays readable and that the release workflow keeps its safety rules.</summary>
@@ -45,6 +46,21 @@ static class QualityGuardTests
             foreach (Match run in Regex.Matches(text, @"run:\s*\|?[\s\S]*?(?=\r?\n\s{6}- |\r?\n\s{2}\w|\z)"))
                 Check(!Regex.IsMatch(run.Value, @"\$\{\{\s*(github\.event\.(pull_request|head_commit|issue|comment)|github\.head_ref|inputs\.)"),
                     "untrusted input must reach scripts through env, not inline");
+        });
+
+        test("release version, readme and packaged release notes agree", () =>
+        {
+            var root = RepositoryRoot();
+            var props = XDocument.Load(Path.Combine(root, "Directory.Build.props"));
+            var version = props.Descendants("VersionPrefix").Single().Value;
+            var file = $"release-notes-{version}.md";
+            var notesPath = Path.Combine(root, "docs", file);
+            Check(File.Exists(notesPath), "release notes for the package version are missing");
+            Check(File.ReadLines(notesPath).First() == $"# Agent Usage Monitor {version}",
+                "release notes title does not match the package version");
+            var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+            Check(readme.Contains($"docs/{file}", StringComparison.Ordinal),
+                "readme does not link to the current release notes");
         });
     }
 }

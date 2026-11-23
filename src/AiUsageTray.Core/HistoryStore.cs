@@ -135,6 +135,31 @@ public sealed class HistoryStore
         record.Validate();
         await using var lease = await AcquireAsync(cancellationToken);
         var catalog = await CatalogAsync(cancellationToken);
+        var affected = new List<(DateOnly Date, HistoryRawDay Day, bool Added)>();
+        foreach (var date in record.AffectedDays())
+        {
+            var day = await LoadDayAsync(date, cancellationToken);
+            var added = day.Records.All(r => r.Id != record.Id);
+            if (added && File.Exists(ArchivePath(date)))
+                throw new UsageException(FailureKind.Storage, "history_archived_month_is_sealed");
+            affected.Add((date, day, added));
+        }
+        foreach (var entry in affected)
+            if (entry.Added) entry.Day.Records.Add(record);
+        var projections = affected.Select(entry => (entry.Date, entry.Day, entry.Added,
+            Slices: DailyHistory.Project(entry.Date, entry.Day.Records, maximumGap))).ToArray();
+        var months = new Dictionary<string, HistoryMonth>();
+        foreach (var entry in affected)
+        {
+            var name = DailyHistory.Month(entry.Date);
+            if (months.ContainsKey(name)) continue;
+            var summary = SummaryPath(entry.Date);
+            months[name] = File.Exists(summary)
+                ? await LoadMonthAsync(entry.Date, cancellationToken)
+                : Directory.Exists(Path.GetDirectoryName(summary)!)
+                    ? await RebuildMonthAsync(entry.Date, maximumGap, cancellationToken)
+                    : new HistoryMonth(1, WriterId, name, []);
+        }
         var previous = catalog.Items.Find(i => i.Key == record.Snapshot.Key);
         catalog.Items.RemoveAll(i => i.Key == record.Snapshot.Key);
         var at = record.Snapshot.ObservedAt;
@@ -142,22 +167,12 @@ public sealed class HistoryStore
             previous is not null && previous.FirstObservation < at ? previous.FirstObservation : at,
             previous is not null && previous.LastObservation > at ? previous.LastObservation : at));
         await HistoryFiles.WriteAsync(Resolve("catalog.json"), catalog, cancellationToken);
-        foreach (var date in record.AffectedDays())
+        foreach (var (date, day, added, slices) in projections)
         {
-            var day = await LoadDayAsync(date, cancellationToken);
-            if (day.Records.All(r => r.Id != record.Id))
-            {
-                var archive = ArchivePath(date);
-                if (File.Exists(archive))
-                    throw new UsageException(FailureKind.Storage, "history_archived_month_is_sealed");
-                day.Records.Add(record);
+            if (added)
                 await HistoryFiles.WriteAsync(Resolve(RawRelative(date)), day, cancellationToken);
-            }
             // Replay also repairs a crash between raw persistence and summary replacement.
-            var slices = DailyHistory.Project(date, day.Records, maximumGap);
-            var month = File.Exists(SummaryPath(date))
-                ? await LoadMonthAsync(date, cancellationToken)
-                : await RebuildMonthAsync(date, maximumGap, cancellationToken);
+            var month = months[DailyHistory.Month(date)];
             month.Slices.RemoveAll(s => s.Date == date);
             month.Slices.AddRange(slices);
             month.Slices.Sort((a, b) => a.Date.CompareTo(b.Date));

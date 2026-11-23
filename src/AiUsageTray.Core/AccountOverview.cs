@@ -39,6 +39,22 @@ public static class AccountOverview
         entries.FirstOrDefault(e => e.Profile.Provider == key.Provider &&
             string.Equals(e.Profile.ExpectedAccount, key.Id, StringComparison.OrdinalIgnoreCase))?.Name;
 
+    public static IEnumerable<string> AmountWarnings(
+        UsageState state, Provider provider, UiLocalizer locale, IReadOnlyList<AccountEntry> accounts)
+    {
+        var hidden = false;
+        foreach (var snapshot in state.Latest.Where(s => s.Key.Account.Provider == provider))
+            if (locale.AmountNotificationWarning(state, snapshot) is { } warning)
+            {
+                var account = accounts.FirstOrDefault(a => a.Profile.Provider == provider &&
+                    a.Profile.Enabled && a.Preference.Visible &&
+                    string.Equals(a.Profile.ExpectedAccount, snapshot.Key.Account.Id, StringComparison.OrdinalIgnoreCase));
+                if (account is null) hidden = true;
+                else yield return account.Name + " · " + warning;
+            }
+        if (hidden) yield return locale.Text(UiText.AmountHiddenNotificationPrecisionWarning);
+    }
+
     /// <summary>Notice subject: the service name, plus the account name when the service has several enabled accounts.</summary>
     public static string NoticeSubject(IReadOnlyList<AccountEntry> entries, AccountKey key, string providerName)
     {

@@ -72,6 +72,7 @@ try
             LastConfirmed = state.Latest.Select(s => new
             {
                 Snapshot = s, Stale = !s.IsFresh(DateTimeOffset.UtcNow, state.Polling.MaximumAge),
+                AmountNotificationsUnavailable = UsageEngine.AmountNotificationsUnavailable(state, s),
                 Daily = Budgets.Summarize(state, s, false), Weekly = Budgets.Summarize(state, s, true)
             })
         }, StateStore.JsonOptions));

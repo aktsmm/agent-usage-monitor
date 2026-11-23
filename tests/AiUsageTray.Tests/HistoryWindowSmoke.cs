@@ -26,6 +26,20 @@ static class HistoryWindowSmoke
                     ("BorderBrush", "#474747"), ("AccentBrush", "#FD8EA1"), ("WarningBrush", "#FBBF24")
                 })
                     app.Resources[name] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+                var overviewWindow = new MainWindow(null!);
+                var labelMethod = typeof(MainWindow).GetMethod("Label",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    ?? throw new InvalidOperationException("Overview label factory is missing");
+                var amountLabel = (TextBlock)labelMethod.Invoke(overviewWindow,
+                    ["0.0000000000000000000000000001 credits", 21d, true])!;
+                amountLabel.Measure(new Size(180, double.PositiveInfinity));
+                if (amountLabel.TextWrapping != TextWrapping.Wrap || amountLabel.DesiredSize.Height < 40)
+                    throw new InvalidOperationException("Full-precision overview amount does not wrap");
+                var overviewError = (TextBlock)overviewWindow.FindName("Error");
+                overviewError.Text = new UiLocalizer(DisplayLanguage.English).Text(UiText.HistoryIntervalsOverlap);
+                overviewError.Measure(new Size(180, double.PositiveInfinity));
+                if (overviewError.TextWrapping != TextWrapping.Wrap || overviewError.DesiredSize.Height < 30)
+                    throw new InvalidOperationException("Overview history error does not wrap");
                 var now = JapaneseCalendar.DayStart(DateTimeOffset.UtcNow);
                 var key = new QuotaKey(AccountKey.FromIdentity(Provider.Copilot, "synthetic-ui"), "monthly demo");
                 var otherKey = new QuotaKey(AccountKey.FromIdentity(Provider.Codex, "synthetic-ui-other"), "weekly demo");
@@ -133,6 +147,24 @@ static class HistoryWindowSmoke
                 {
                     try
                     {
+                        var tabs = Descendants(window).OfType<TabControl>().Single();
+                        tabs.SelectedIndex = 1;
+                        window.UpdateLayout();
+                        window.SetStorageStatus(new HistoryStorageStatus(1, "history_consumption_intervals_overlap"));
+                        foreach (var language in new[] { DisplayLanguage.Japanese, DisplayLanguage.English })
+                        {
+                            window.SetLanguage(new UiLocalizer(language));
+                            var expected = language == DisplayLanguage.Japanese
+                                ? "観測区間が重複" : "observation intervals overlap";
+                            if (!Descendants(window).OfType<TextBlock>().Any(text =>
+                                text.Text.Contains(expected, StringComparison.Ordinal) &&
+                                text.Text.Contains("history_consumption_intervals_overlap", StringComparison.Ordinal)))
+                                throw new InvalidOperationException("Localized pending overlap status missing");
+                        }
+                        window.SetStorageStatus(new HistoryStorageStatus(0, null));
+                        window.SetLanguage(new UiLocalizer(DisplayLanguage.English));
+                        tabs.SelectedIndex = 0;
+                        window.UpdateLayout();
                         var overview = Descendants(window).OfType<ListBox>().Single(list =>
                             list.Items.OfType<ListBoxItem>().Any(item => item.Tag is HistoryOverviewItem));
                         var initialGraph = Descendants(window).OfType<Canvas>().Single();
