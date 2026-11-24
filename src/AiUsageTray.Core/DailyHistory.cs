@@ -56,6 +56,10 @@ public sealed record DailyHistorySlice(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool CumulativeCaptured { get; init; }
 
+    /// <summary>Consumption removed because the counter fell to 0 and climbed back to its earlier value (not new usage).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public decimal ExcludedRecovery { get; init; }
+
     public decimal? GuidancePercent => Guidance is > 0 && Observed is { } value
         ? value / Guidance * 100 : null;
 }
@@ -89,6 +93,9 @@ public sealed record HistoryDayPage(List<HistoryDay> Days, int? NextOffset, stri
 public static class DailyHistory
 {
     public static string Month(DateOnly date) => date.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+
+    /// <summary>Bump when <see cref="Project"/> changes what the slices contain, so stored month summaries are rebuilt.</summary>
+    public const int ProjectionRevision = 1;
 
     internal static decimal? CumulativeAtEndOfDay(DateOnly date, QuotaKey key, string periodId,
         DateTimeOffset? observedThrough, IEnumerable<HistoryRecord> records)
@@ -133,7 +140,7 @@ public static class DailyHistory
     }
 
     public static IReadOnlyList<DailyHistorySlice> Project(
-        DateOnly date, IEnumerable<HistoryRecord> source, TimeSpan maximumGap)
+        DateOnly date, IEnumerable<HistoryRecord> source, TimeSpan maximumGap, IEnumerable<HistoryRecord>? previousDay = null)
     {
         if (maximumGap <= TimeSpan.Zero)
             throw new UsageException(FailureKind.Schema, "history_maximum_gap");
@@ -149,7 +156,8 @@ public static class DailyHistory
             var start = snapshot.Window.StartsAt is { } a && a > dayStart ? a : dayStart;
             var end = snapshot.Window.ResetsAt is { } b && b < dayEnd ? b : dayEnd;
             if (end <= start) continue;
-            var deltas = group.Select(r => r.Delta).OrderBy(d => d.From).ThenBy(d => d.To).ToArray();
+            var context = previousDay?.Where(r => r.Snapshot.Key == group.Key.Key && r.Snapshot.PeriodId == group.Key.PeriodId) ?? [];
+            var (deltas, excluded) = CorrectRecoveries(context, group);
             var measurable = deltas.Where(d => d.Kind == DeltaKind.Consumption &&
                 d.From >= start && d.To <= end && d.To > d.From).ToArray();
             var observations = group.Select(r => r.Snapshot.ObservedAt)
@@ -180,10 +188,76 @@ public static class DailyHistory
                 !contiguous)
             {
                 Cumulative = CumulativeAtEndOfDay(date, snapshot.Key, snapshot.PeriodId, through, group),
-                CumulativeCaptured = true
+                CumulativeCaptured = true,
+                ExcludedRecovery = excluded
             });
         }
         return output.OrderBy(s => s.Key.Account.Provider).ThenBy(s => s.Key.Account.Id)
             .ThenBy(s => s.Key.Bucket).ThenBy(s => s.PeriodId).ToArray();
+    }
+
+    /// <summary>
+    /// Re-reads the cumulative values of one period's records and removes the climb back after a transient drop to 0 from the
+    /// consumed amounts (see <see cref="CounterRecovery"/>). Stored records are never changed; older versions recorded that climb
+    /// as consumption, which is why this runs at projection time. <paramref name="prior"/> carries the previous day's records of
+    /// the same period so that a drop shortly before midnight is still known; only <paramref name="group"/> is corrected.
+    /// A stored amount is never raised: the correction can only remove consumption.
+    /// </summary>
+    internal static (UsageDelta[] Deltas, decimal Excluded) CorrectRecoveries(
+        IEnumerable<HistoryRecord> prior, IEnumerable<HistoryRecord> group)
+    {
+        var members = group.OrderBy(r => r.Delta.From).ThenBy(r => r.Delta.To).ToArray();
+        var memberIds = members.Select(r => r.Id).ToHashSet();
+        var sequence = prior.Where(r => !memberIds.Contains(r.Id)).Concat(members)
+            .OrderBy(r => r.Delta.From).ThenBy(r => r.Delta.To).ToArray();
+        var output = new List<UsageDelta>(members.Length);
+        decimal? peak = null, last = null;
+        DateTimeOffset? since = null;
+        decimal excluded = 0;
+        foreach (var record in sequence)
+        {
+            var delta = record.Delta;
+            var corrected = delta;
+            decimal removed = 0;
+            var used = record.Snapshot.Used;
+            if (delta.Kind is not (DeltaKind.Consumption or DeltaKind.Adjustment))
+            {
+                // Baseline, reset or a changed definition: a new series starts.
+                peak = null; since = null; last = used;
+            }
+            else if (used is null)
+            {
+                // A missing reading keeps an open recovery (the engine does too) but gives no step of its own.
+                last = null;
+            }
+            else
+            {
+                if (last is { } before)
+                {
+                    var step = CounterRecovery.Step(before, used.Value, delta.To, peak, since);
+                    if (peak is not null)
+                    {
+                        // Only inside an open recovery are stored amounts replaced; elsewhere they are trusted as recorded.
+                        if (delta.Kind == DeltaKind.Consumption && delta.Amount is { } stored)
+                        {
+                            decimal? amount = step.Kind == DeltaKind.Consumption ? Math.Min(step.Amount ?? 0, stored) : null;
+                            if (amount != stored)
+                            {
+                                removed = stored - (amount ?? 0);
+                                corrected = delta with { Kind = amount is null ? DeltaKind.Adjustment : DeltaKind.Consumption, Amount = amount };
+                            }
+                        }
+                        (peak, since) = (step.Peak, step.Since);
+                    }
+                    else if (delta.Kind == DeltaKind.Adjustment && step.Peak is { } opened)
+                        (peak, since) = (opened, step.Since);
+                }
+                last = used;
+            }
+            if (!memberIds.Contains(record.Id)) continue; // context records are only read, never reported
+            output.Add(corrected);
+            excluded += removed;
+        }
+        return (output.ToArray(), excluded);
     }
 }

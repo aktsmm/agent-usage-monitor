@@ -71,7 +71,8 @@ public enum UiText
     HistoryOverviewUnmeasured, HistoryOverviewPartial, HistoryGraphZero, HistoryGraphZeroWithGaps, HistoryGraphNoData,
     HistoryOverviewChanged, HistoryGraphGuidanceAbove, HistoryPeriodDenominator, HistoryOverviewFallback, HistoryShowGraph,
     HistoryCumulative, BucketChat, BucketCompletions, BucketPremium, HistoryGraphName, HistoryGraphHelp,
-    ShowAllCopilotBuckets, ShowAllCopilotBucketsNote
+    ShowAllCopilotBuckets, ShowAllCopilotBucketsNote, HistoryOverviewCount, HistoryOverviewSelected, PeriodUnitsExplanation,
+    PeriodFewRecords, HistoryRecoveryExcluded
 }
 
 public sealed class UiLocalizer

@@ -85,7 +85,12 @@ public sealed record HistoryManifest(int Version, string WriterId, string Calend
 public sealed record HistoryCatalogItem(QuotaKey Key, DateTimeOffset FirstObservation, DateTimeOffset LastObservation);
 public sealed record HistoryCatalog(int Version, string WriterId, List<HistoryCatalogItem> Items);
 public sealed record HistoryRawDay(int Version, string WriterId, DateOnly Date, List<HistoryRecord> Records);
-public sealed record HistoryMonth(int Version, string WriterId, string Month, List<DailyHistorySlice> Slices);
+public sealed record HistoryMonth(int Version, string WriterId, string Month, List<DailyHistorySlice> Slices)
+{
+    /// <summary>Which projection rules built the slices (0 = before recovery correction). A stale summary is rebuilt from the raw days.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int Projection { get; init; }
+}
 public sealed record HistoryArchiveEntry(string Name, long Bytes, string Hash);
 public sealed record HistoryArchiveManifest(int Version, string WriterId, string Month,
     List<HistoryArchiveEntry> Entries);

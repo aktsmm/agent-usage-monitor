@@ -16,6 +16,7 @@ public static class HistoryRetention
         }
         state.Failures.RemoveAll(f => f.AttemptedAt < cutoff);
         var active = state.Latest.Select(s => (s.Key, s.PeriodId)).ToHashSet();
+        state.Recoveries.RemoveAll(r => !active.Contains((r.Key, r.PeriodId)));
         state.Notifications.RemoveAll(n => n.CreatedAt < cutoff && !active.Contains((n.Key, n.PeriodId)));
         var referenced = active.Concat(state.Deltas.Select(d => (d.Key, d.PeriodId))).ToHashSet();
         state.Baselines = state.Baselines.Where(b => referenced.Contains((b.Key, b.PeriodId)))

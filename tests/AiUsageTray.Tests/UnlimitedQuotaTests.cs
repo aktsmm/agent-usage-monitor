@@ -370,6 +370,64 @@ static class UnlimitedQuotaTests
             Equal<decimal?>(null, day.Guidance);
         });
 
+        test("a counter that falls to 0 and returns does not count the climb back as consumption", () =>
+        {
+            var state = new UsageState();
+            var later = new List<NotificationCandidate>();
+            foreach (var (minute, used) in new[] { (0, 10_000m), (5, 0m), (10, 0m), (15, 10_000m), (20, 10_250m) })
+            {
+                var notices = UsageEngine.Apply(state, new FetchResult([Unlimited("lab", "premium", used, now.AddMinutes(minute))], []),
+                    now.AddMinutes(minute));
+                if (minute > 0) later.AddRange(notices);
+            }
+            Check(later.Count == 0, "the dip and the return do not send the amount notices again");
+            Equal<decimal?>(250m, state.Deltas.Where(d => d.Kind == DeltaKind.Consumption).Sum(d => d.Amount));
+            Equal(2, state.Deltas.Count(d => d.Kind == DeltaKind.Adjustment));
+            Equal(0, state.Recoveries.Count);
+            state.Validate();
+        });
+        test("the engine and the history projection agree across a missing reading and a second dip", () =>
+        {
+            var state = new UsageState();
+            var snapshots = new List<QuotaSnapshot>();
+            foreach (var (minute, used) in new (int, decimal?)[] { (0, 1_000m), (5, 0m), (10, null), (15, 200m), (20, 0m), (25, 1_100m) })
+            {
+                // A missing reading keeps the unit (same period) but has no value.
+                var snapshot = used is null ? Unlimited("lab", "premium", 1m, now.AddMinutes(minute)) with { Used = null, CreditsUsed = null }
+                    : Unlimited("lab", "premium", used, now.AddMinutes(minute));
+                snapshots.Add(snapshot);
+                UsageEngine.Apply(state, new FetchResult([snapshot], []), now.AddMinutes(minute));
+            }
+            var recorded = state.Deltas.Where(d => d.Kind == DeltaKind.Consumption).Sum(d => d.Amount) ?? 0;
+            Equal(100m, recorded);
+            Equal(snapshots.Count, state.Deltas.Count);
+            // The old engine counted the climbs as consumption; replay them as records and let the projection correct them.
+            var legacy = state.Deltas.Select((d, i) => HistoryRecord.Create(snapshots[i] with { ObservedAt = d.To },
+                d)).ToArray();
+            var day = DailyHistory.Project(JapaneseCalendar.Date(now), legacy, TimeSpan.FromMinutes(30)).Single();
+            Equal<decimal?>(100m, day.Observed);
+            Check(day.ExcludedRecovery >= 0, "the excluded amount is never negative");
+        });        test("a drop to 0 that never returns is a genuine reset after the recovery window", () =>
+        {
+            var state = new UsageState();
+            UsageEngine.Apply(state, new FetchResult([Unlimited("lab", "premium", 1_000m, now)], []), now);
+            UsageEngine.Apply(state, new FetchResult([Unlimited("lab", "premium", 0m, now.AddMinutes(5))], []), now.AddMinutes(5));
+            Equal(1, state.Recoveries.Count);
+            var later = now.AddMinutes(5) + CounterRecovery.Window + TimeSpan.FromMinutes(1);
+            UsageEngine.Apply(state, new FetchResult([Unlimited("lab", "premium", 300m, later)], []), later);
+            Equal<decimal?>(300m, state.Deltas.Last().Amount);
+            Equal(0, state.Recoveries.Count);
+        });
+        test("a lower reading that is not a drop to 0 keeps the previous behaviour", () =>
+        {
+            var state = new UsageState();
+            foreach (var (minute, used) in new[] { (0, 1_000m), (5, 400m), (10, 450m) })
+                UsageEngine.Apply(state, new FetchResult([Unlimited("lab", "premium", used, now.AddMinutes(minute))], []),
+                    now.AddMinutes(minute));
+            Equal(0, state.Recoveries.Count);
+            Equal<decimal?>(50m, state.Deltas.Where(d => d.Kind == DeltaKind.Consumption).Sum(d => d.Amount));
+        });
+
         test("amount-step notices start again in a new quota period", () =>
         {
             var state = new UsageState();

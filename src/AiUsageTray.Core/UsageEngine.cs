@@ -37,6 +37,21 @@ public static class UsageEngine
                 : !current.HasMeasurement || !previous.HasMeasurement ? DeltaKind.Adjustment
                 : current.Used < previous.Used ? DeltaKind.Adjustment : DeltaKind.Consumption;
             decimal? amount = kind == DeltaKind.Consumption ? current.Used - previous!.Used : null;
+            var recovery = state.Recoveries.FirstOrDefault(r => r.Key == current.Key && r.PeriodId == current.PeriodId);
+            if (recovery is not null && !comparable)
+            {
+                state.Recoveries.Remove(recovery);
+                recovery = null;
+            }
+            if (comparable && current.HasMeasurement && previous!.HasMeasurement &&
+                previous.Used is { } before && current.Used is { } after)
+            {
+                var step = CounterRecovery.Step(before, after, current.ObservedAt, recovery?.Peak, recovery?.Since);
+                (kind, amount) = (step.Kind, step.Amount);
+                if (recovery is not null) state.Recoveries.Remove(recovery);
+                if (step.Peak is { } peak)
+                    state.Recoveries.Add(new(current.Key, current.PeriodId, peak, step.Since!.Value));
+            }
             state.Deltas.Add(new(current.Key, current.PeriodId,
                 previous?.ObservedAt ?? current.ObservedAt, current.ObservedAt, current.Unit, amount, kind));
             if (!comparable)

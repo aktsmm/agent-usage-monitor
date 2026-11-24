@@ -367,5 +367,10 @@ Usage用のtokenは更新先へ送りません。</value></data>
   <data name="BucketPremium" xml:space="preserve"><value>プレミアム リクエスト</value></data>
   <data name="ShowAllCopilotBuckets" xml:space="preserve"><value>Copilotのチャットとコード補完も表示する</value></data>
   <data name="ShowAllCopilotBucketsNote" xml:space="preserve"><value>既定ではCopilotはプレミアム リクエストだけを表示します。オンにすると、使用量・常駐ストリップ・履歴にチャットとコード補完も表示します。取得・履歴の記録・通知は変わりません。</value></data>
+  <data name="HistoryOverviewCount" xml:space="preserve"><value>{0}件</value></data>
+  <data name="HistoryOverviewSelected" xml:space="preserve"><value>選択中: {0}</value></data>
+  <data name="PeriodUnitsExplanation" xml:space="preserve"><value>pt: 使用率の増加幅です（12%から13%なら1 pt。料金やtoken数ではありません）。クレジット: 上限なしの枠でAPIが報告する使用クレジットで、分母はありません。</value></data>
+  <data name="PeriodFewRecords" xml:space="preserve"><value>記録が少ない</value></data>
+  <data name="HistoryRecoveryExcluded" xml:space="preserve"><value>除外: {0} {1}。APIが一時的に0を返したあと元の値へ戻ったため、戻り分は新しい使用ではありません。</value></data>
   <data name="HistoryGraphGuidanceAbove" xml:space="preserve"><value>日目安はグラフの表示範囲より上です。選択日の詳細をご確認ください。</value></data>
 </root>

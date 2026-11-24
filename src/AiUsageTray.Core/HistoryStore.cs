@@ -122,7 +122,7 @@ public sealed class HistoryStore
                 string.IsNullOrWhiteSpace(s.Key.Bucket) || s.Window is null ||
                 !Enum.IsDefined(s.Window.Kind) || s.Events.Any(e => !Enum.IsDefined(e)) ||
                 !Enum.IsDefined(s.Coverage) || !Enum.IsDefined(s.Unit) ||
-                s.Observed < 0 || s.Guidance < 0 || s.Cumulative < 0 ||
+                s.Observed < 0 || s.Guidance < 0 || s.Cumulative < 0 || s.ExcludedRecovery < 0 ||
                 (s.Coverage == Coverage.CompleteToObservation && s.ObservedThrough is null) ||
                 (s.Coverage == Coverage.Unmeasured ? s.Observed is not null : s.Observed is null)) ||
             month.Slices.Select(s => (s.Date, s.Key, s.PeriodId)).Distinct().Count() != month.Slices.Count)
@@ -146,19 +146,23 @@ public sealed class HistoryStore
         }
         foreach (var entry in affected)
             if (entry.Added) entry.Day.Records.Add(record);
-        var projections = affected.Select(entry => (entry.Date, entry.Day, entry.Added,
-            Slices: DailyHistory.Project(entry.Date, entry.Day.Records, maximumGap))).ToArray();
+        var projections = new List<(DateOnly Date, HistoryRawDay Day, bool Added, IReadOnlyList<DailyHistorySlice> Slices)>();
+        foreach (var entry in affected)
+            projections.Add((entry.Date, entry.Day, entry.Added, DailyHistory.Project(entry.Date, entry.Day.Records, maximumGap,
+                (await TryLoadPreviousDayAsync(entry.Date, cancellationToken)).Records)));
         var months = new Dictionary<string, HistoryMonth>();
         foreach (var entry in affected)
         {
             var name = DailyHistory.Month(entry.Date);
             if (months.ContainsKey(name)) continue;
             var summary = SummaryPath(entry.Date);
-            months[name] = File.Exists(summary)
+            var loaded = File.Exists(summary)
                 ? await LoadMonthAsync(entry.Date, cancellationToken)
                 : Directory.Exists(Path.GetDirectoryName(summary)!)
                     ? await RebuildMonthAsync(entry.Date, maximumGap, cancellationToken)
-                    : new HistoryMonth(1, WriterId, name, []);
+                    : new HistoryMonth(1, WriterId, name, []) { Projection = DailyHistory.ProjectionRevision };
+            months[name] = loaded.Projection >= DailyHistory.ProjectionRevision ? loaded
+                : await TryRebuildAsync(entry.Date, maximumGap, loaded, cancellationToken);
         }
         var previous = catalog.Items.Find(i => i.Key == record.Snapshot.Key);
         catalog.Items.RemoveAll(i => i.Key == record.Snapshot.Key);
@@ -178,21 +182,88 @@ public sealed class HistoryStore
             month.Slices.Sort((a, b) => a.Date.CompareTo(b.Date));
             await HistoryFiles.WriteAsync(SummaryPath(date), month, cancellationToken);
         }
+        await RefreshOneStaleMonthAsync(months.Keys.ToHashSet(), maximumGap, cancellationToken);
     }
 
+    /// <summary>Rebuilds a stale month summary from its raw days. Best effort: a month that cannot be rebuilt stays as it was.</summary>
+    private async Task<HistoryMonth> TryRebuildAsync(DateOnly date, TimeSpan maximumGap, HistoryMonth current,
+        CancellationToken cancellationToken)
+    {
+        var name = DailyHistory.Month(date);
+        if (failedRefreshes.Contains(name)) return current;
+        try
+        {
+            var rebuilt = await RebuildMonthAsync(date, maximumGap, cancellationToken);
+            if (RebuildKeepsEveryDay(current, rebuilt)) return rebuilt;
+        }
+        catch (Exception ex) when (ex is UsageException or IOException or UnauthorizedAccessException)
+        { }
+        failedRefreshes.Add(name);
+        return current;
+    }
+
+    // A raw day can be missing (moved, archived) while its summary survives; replacing the summary then would drop that day.
+    private static bool RebuildKeepsEveryDay(HistoryMonth old, HistoryMonth rebuilt) =>
+        old.Slices.Select(s => s.Date).Distinct().All(day => rebuilt.Slices.Any(s => s.Date == day));
+
+    private async Task<HistoryRawDay> TryLoadPreviousDayAsync(DateOnly date, CancellationToken cancellationToken)
+    {
+        if (date == DateOnly.MinValue) return new(1, WriterId, date, []);
+        var previous = date.AddDays(-1);
+        try { return await LoadDayAsync(previous, cancellationToken); }
+        catch (Exception ex) when (ex is UsageException or IOException or UnauthorizedAccessException)
+        { return new(1, WriterId, previous, []); }
+    }
+
+    private readonly HashSet<string> failedRefreshes = [];
+
+    /// <summary>One older month per call keeps each polling cycle short while past months get the current projection rules.</summary>
+    private async Task RefreshOneStaleMonthAsync(IReadOnlySet<string> handled, TimeSpan maximumGap,
+        CancellationToken cancellationToken)
+    {
+        var root = Resolve("months");
+        if (!Directory.Exists(root)) return;
+        foreach (var directory in Directory.EnumerateDirectories(root).OrderByDescending(d => d, StringComparer.Ordinal))
+        {
+            var name = Path.GetFileName(directory);
+            if (handled.Contains(name) || failedRefreshes.Contains(name) || !DateOnly.TryParseExact(name + "-01", "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var first)) continue;
+            if (!File.Exists(SummaryPath(first)) || File.Exists(ArchivePath(first))) continue;
+            try
+            {
+                var month = await LoadMonthAsync(first, cancellationToken);
+                if (month.Projection >= DailyHistory.ProjectionRevision) continue;
+                var rebuilt = await RebuildMonthAsync(first, maximumGap, cancellationToken);
+                if (!RebuildKeepsEveryDay(month, rebuilt)) { failedRefreshes.Add(name); continue; }
+                await HistoryFiles.WriteAsync(SummaryPath(first), rebuilt, cancellationToken);
+            }
+            catch (Exception ex) when (ex is UsageException or IOException or UnauthorizedAccessException)
+            {
+                // Do not retry a month that failed in this process on every append; the next month gets its turn.
+                failedRefreshes.Add(name);
+                continue;
+            }
+            return;
+        }
+    }
     private async Task<HistoryMonth> RebuildMonthAsync(DateOnly month, TimeSpan maximumGap,
         CancellationToken cancellationToken)
     {
-        var data = new HistoryMonth(1, WriterId, DailyHistory.Month(month), []);
+        var data = new HistoryMonth(1, WriterId, DailyHistory.Month(month), []) { Projection = DailyHistory.ProjectionRevision };
         var directory = Path.GetDirectoryName(SummaryPath(month))!;
-        foreach (var path in Directory.EnumerateFiles(directory, "*.json"))
+        HistoryRawDay? previous = null;
+        foreach (var path in Directory.EnumerateFiles(directory, "*.json").Order(StringComparer.Ordinal))
         {
+            if (string.Equals(path, SummaryPath(month), StringComparison.OrdinalIgnoreCase)) continue;
             if (!DateOnly.TryParseExact(Path.GetFileNameWithoutExtension(path), "yyyy-MM-dd",
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ||
                 DailyHistory.Month(date) != data.Month)
                 throw new UsageException(FailureKind.Storage, "history_month_unknown_file");
             var day = await LoadDayAsync(date, cancellationToken);
-            data.Slices.AddRange(DailyHistory.Project(date, day.Records, maximumGap));
+            var before = previous is not null && previous.Date == date.AddDays(-1)
+                ? previous : await TryLoadPreviousDayAsync(date, cancellationToken);
+            data.Slices.AddRange(DailyHistory.Project(date, day.Records, maximumGap, before.Records));
+            previous = day;
         }
         return data;
     }
