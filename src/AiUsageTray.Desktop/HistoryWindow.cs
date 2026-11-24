@@ -32,7 +32,9 @@ public sealed class HistoryWindow : Window
     private readonly TextBox month = new();
     private readonly Canvas chart = CreateChart();
     private readonly ListBox overview = new() { MaxHeight = 250, MinHeight = 80, Margin = new Thickness(0, 4, 0, 12) };
-    private readonly TextBlock overviewStatus = new(), graphStatus = new();
+    private readonly TextBlock overviewStatus = new(), graphStatus = new(), overviewHeader = new();
+    private readonly Expander overviewExpander = new() { Margin = new Thickness(0, 4, 0, 4) };
+    private readonly StackPanel overviewBody = new();
     private readonly TextBlock detail = new(), error = new(), status = new(), folder = new(), archiveStatus = new();
     private readonly StackPanel history = new(), storage = new();
     private readonly Button choose = new();
@@ -230,15 +232,23 @@ public sealed class HistoryWindow : Window
             monthRange = false;
             await RunAsync(async () => { await LoadOverviewAsync(); await ShowOverviewSelectionAsync(); });
         };
-        history.Children.Add(Label(UiText.HistoryOverview, 17, true));
+        overviewExpander.IsExpanded = false;
+        overviewExpander.Header = overviewHeader;
+        overviewHeader.FontSize = 17;
+        overviewHeader.FontWeight = FontWeights.SemiBold;
+        overviewHeader.TextWrapping = TextWrapping.Wrap;
+        overviewHeader.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
         var hint = Label(UiText.HistoryOverviewHint);
         hint.TextWrapping = TextWrapping.Wrap;
-        history.Children.Add(hint);
+        overviewBody.Children.Add(hint);
+        overviewBody.Children.Add(overview);
+        overviewExpander.Content = overviewBody;
+        history.Children.Add(overviewExpander);
         history.Children.Add(overviewStatus);
-        history.Children.Add(overview);
         overview.SelectionChanged += async (_, _) =>
         {
             UpdateOverviewSelection();
+            UpdateOverviewHeader();
             if (!loading && (overview.SelectedItem as ListBoxItem)?.Tag is HistoryOverviewItem item)
                 await RunAsync(() => SelectOverviewAsync(item));
         };
@@ -263,6 +273,9 @@ public sealed class HistoryWindow : Window
         bucket.SelectionChanged += async (_, _) => { if (!loading) await RunAsync(QueryAsync); };
         history.Children.Add(Label(UiText.PeriodDefinition));
         history.Children.Add(period);
+        var units = Label(UiText.PeriodUnitsExplanation);
+        units.TextWrapping = TextWrapping.Wrap;
+        history.Children.Add(units);
         period.SelectionChanged += (_, _) => { if (!loading) { Draw(); SyncOverviewSelection(); } };
         translations.Add(() =>
         {
@@ -536,7 +549,9 @@ public sealed class HistoryWindow : Window
                 ?? rows.Where(i => i.Tag is HistoryOverviewItem candidate && selectedKey is not null &&
                         candidate.Key.Account == selectedKey.Account)
                     .OrderBy(i => QuotaVisibility.BucketPreference(((HistoryOverviewItem)i.Tag).Key)).FirstOrDefault()
-                ?? rows.FirstOrDefault();
+                // Nothing was selected before: open the first quota, on its period with the most observed days (not a stray one).
+                ?? rows.Where(i => rows.Length > 0 && (i.Tag as HistoryOverviewItem)?.Key == (rows[0].Tag as HistoryOverviewItem)?.Key)
+                    .OrderByDescending(i => (i.Tag as HistoryOverviewItem)?.MeasuredDays ?? 0).FirstOrDefault();
             loading = true;
             try { overview.SelectedItem = row; }
             finally { loading = false; }
@@ -605,8 +620,20 @@ public sealed class HistoryWindow : Window
             overviewStatus.Text = overviewFailure is not null
                 ? localizer.Error(overviewFailure) + "\n" + localizer.Text(UiText.HistoryOverviewFallback)
                 : overviewItems.Count == 0 ? localizer.Text(UiText.HistoryOverviewEmpty) : "";
+            UpdateOverviewHeader();
         }
         finally { loading = previous; }
+    }
+
+    // The list is collapsed by default, so its header names the selected item and the number of items.
+    private void UpdateOverviewHeader()
+    {
+        var text = localizer.Text(UiText.HistoryOverview) + " · " + localizer.Format(UiText.HistoryOverviewCount, overview.Items.Count);
+        if ((overview.SelectedItem as ListBoxItem)?.Tag is HistoryOverviewItem item)
+            text += " · " + localizer.Format(UiText.HistoryOverviewSelected,
+                $"{item.Key.Account.Provider} · {accountName?.Invoke(item.Key.Account) ?? item.Key.Account.Id[..8]} · {localizer.Bucket(item.Key)}");
+        overviewHeader.Text = text;
+        AutomationProperties.SetName(overviewExpander, text);
     }
 
     private void UpdateOverviewSelection()
@@ -723,14 +750,17 @@ public sealed class HistoryWindow : Window
             try
             {
                 period.Items.Clear();
-                foreach (var slice in days.SelectMany(d => d.Slices).GroupBy(PeriodOf).Select(g => g.Last()))
+                // Most observed days first, so the period that holds the data is the default (a few stray records of
+                // another unit never come first).
+                foreach (var slice in days.SelectMany(d => d.Slices).GroupBy(PeriodOf).Select(g => g.Last())
+                    .OrderByDescending(s => MeasuredDays(PeriodOf(s))).ThenByDescending(s => s.Window.StartsAt))
                     period.Items.Add(new ComboBoxItem
                     {
                         Content = PeriodTitle(slice),
                         Tag = PeriodOf(slice)
                     });
                 period.SelectedItem = period.Items.OfType<ComboBoxItem>().FirstOrDefault(i => Equals(i.Tag, selected));
-                if (period.SelectedItem is null && period.Items.Count > 0) period.SelectedIndex = period.Items.Count - 1;
+                if (period.SelectedItem is null && period.Items.Count > 0) period.SelectedIndex = 0;
             }
             finally { loading = false; }
             Draw();
@@ -763,11 +793,20 @@ public sealed class HistoryWindow : Window
         finally { loading = false; }
     }
 
-    private string PeriodTitle(DailyHistorySlice slice) =>
-        $"{slice.Plan ?? localizer.Text(UiText.PlanUnknown)} · {localizer.Unit(slice.Unit)} · "
-        + $"{slice.Window.StartsAt?.ToOffset(JapaneseCalendar.Offset).ToString("g", localizer.Culture)} – "
-        + $"{slice.Window.ResetsAt?.ToOffset(JapaneseCalendar.Offset).ToString("g", localizer.Culture)}"
-        + $" · {Denominator(slice.PeriodId)}";
+    private int MeasuredDays(PeriodSelection selection) =>
+        days.Count(day => day.Slices.Any(s => PeriodOf(s) == selection && s.Observed is not null));
+
+    private string PeriodTitle(DailyHistorySlice slice)
+    {
+        var title = $"{slice.Plan ?? localizer.Text(UiText.PlanUnknown)} · {localizer.Unit(slice.Unit)} · "
+            + $"{slice.Window.StartsAt?.ToOffset(JapaneseCalendar.Offset).ToString("g", localizer.Culture)} – "
+            + $"{slice.Window.ResetsAt?.ToOffset(JapaneseCalendar.Offset).ToString("g", localizer.Culture)}"
+            + $" · {Denominator(slice.PeriodId)}";
+        var own = MeasuredDays(PeriodOf(slice));
+        // Flag a period with only a couple of observed days when another period of the same selection has clearly more.
+        var richest = days.SelectMany(d => d.Slices).Select(PeriodOf).Distinct().Max(MeasuredDays);
+        return own <= 2 && richest > own ? title + " · " + localizer.Text(UiText.PeriodFewRecords) : title;
+    }
 
     private string Denominator(string? periodId)
     {
@@ -905,7 +944,9 @@ public sealed class HistoryWindow : Window
             slice?.Cumulative is { } cumulative ? localizer.Amount(cumulative) : "—", localizer.Unit(slice?.Unit ?? UsageUnit.Unknown))
         + (slice is null ? "" : "\n" + localizer.Text(UiText.Changes) + ": " + string.Join(", ", slice.Events)
             + (slice.UnallocatedBoundary ? " · " + localizer.Text(UiText.DayBoundaryUnallocated) : "")
-            + (slice.HasGaps ? " · " + localizer.Text(UiText.ObservationGap) : ""));
+            + (slice.HasGaps ? " · " + localizer.Text(UiText.ObservationGap) : "")
+            + (slice.ExcludedRecovery > 0 ? "\n" + localizer.Format(UiText.HistoryRecoveryExcluded,
+                localizer.Amount(slice.ExcludedRecovery), localizer.Unit(slice.Unit)) : ""));
 
     private async Task OpenAsync(HistoryLocation location)
     {

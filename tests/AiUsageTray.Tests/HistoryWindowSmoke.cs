@@ -170,6 +170,26 @@ static class HistoryWindowSmoke
                         window.SetLanguage(new UiLocalizer(DisplayLanguage.English));
                         tabs.SelectedIndex = 0;
                         window.UpdateLayout();
+                        var expander = Descendants(window).OfType<Expander>().Single();
+                        if (expander.IsExpanded)
+                            throw new InvalidOperationException("The usage overview is not collapsed by default");
+                        var collapsedHeader = System.Windows.Automation.AutomationProperties.GetName(expander);
+                        if (!collapsedHeader.Contains(new UiLocalizer(DisplayLanguage.English).Format(UiText.HistoryOverviewCount, 5)) ||
+                            !collapsedHeader.Contains(new UiLocalizer(DisplayLanguage.English).Text(UiText.HistoryOverviewSelected).Split('{')[0]))
+                            throw new InvalidOperationException("The collapsed overview header does not show the count and the selected item");
+                        if (outputFolder is not null)
+                        {
+                            Directory.CreateDirectory(outputFolder);
+                            var collapsedBitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight,
+                                96, 96, PixelFormats.Pbgra32);
+                            collapsedBitmap.Render(window);
+                            var collapsedEncoder = new PngBitmapEncoder();
+                            collapsedEncoder.Frames.Add(BitmapFrame.Create(collapsedBitmap));
+                            using var collapsedStream = File.Create(Path.Combine(outputFolder, "history-window-collapsed-synthetic.png"));
+                            collapsedEncoder.Save(collapsedStream);
+                        }
+                        expander.IsExpanded = true;
+                        window.UpdateLayout();
                         var overview = Descendants(window).OfType<ListBox>().Single(list =>
                             list.Items.OfType<ListBoxItem>().Any(item => item.Tag is HistoryOverviewItem));
                         var initialGraph = Descendants(window).OfType<Canvas>().Single();
@@ -321,7 +341,9 @@ static class HistoryWindowSmoke
                         var period = Descendants(window).OfType<ComboBox>().Single(box =>
                             box.Items.OfType<ComboBoxItem>().Count(item =>
                                 item.Content?.ToString()?.Contains("Synthetic plan", StringComparison.Ordinal) == true) == 2);
-                        period.SelectedIndex = 0;
+                        // Periods are ordered by how many days were observed, so pick by identity instead of by position.
+                        period.SelectedItem = period.Items.OfType<ComboBoxItem>()
+                            .Single(item => !item.Tag!.ToString()!.Contains("synthetic-second", StringComparison.Ordinal));
                         if ((overview.SelectedItem as ListBoxItem)?.Tag is not HistoryOverviewItem selection ||
                             selection.Key != key || selection.PeriodId == "synthetic-second")
                             throw new InvalidOperationException("Period change did not synchronize the overview");
@@ -560,7 +582,7 @@ static class HistoryWindowSmoke
         thread.IsBackground = true;
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        try { await completion.Task.WaitAsync(TimeSpan.FromSeconds(20)); }
+        try { await completion.Task.WaitAsync(TimeSpan.FromSeconds(45)); }
         finally
         {
             if (!thread.Join(TimeSpan.FromSeconds(5)))

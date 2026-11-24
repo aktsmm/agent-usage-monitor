@@ -121,6 +121,12 @@ public sealed record NotificationRules
 public sealed record QuotaRule(QuotaKey Key, NotificationRules Rules, bool Enabled = true);
 public sealed record ProviderBinding(Provider Provider, string SelectionId);
 
+/// <summary>
+/// A cumulative counter that dropped to 0 inside its period. The API has been seen to report such a transient 0 and then the
+/// previous value again, so the climb back up to <paramref name="Peak"/> is not new consumption.
+/// </summary>
+public sealed record RecoveryTarget(QuotaKey Key, string PeriodId, decimal Peak, DateTimeOffset Since);
+
 public sealed record SlotBinding(string Slot, string SelectionId);
 
 public sealed record PollingOptions
@@ -151,11 +157,14 @@ public sealed class UsageState
     public List<UsageDelta> Deltas { get; set; } = [];
     public List<NotificationCandidate> Notifications { get; set; } = [];
     public List<UsageFailure> Failures { get; set; } = [];
+    // Open "reading dropped to 0" episodes; see UsageEngine. Normally empty, and older state files simply lack it.
+    public List<RecoveryTarget> Recoveries { get; set; } = [];
 
     public void Validate()
     {
         if (Version != 1 || Rules is null || Polling is null || QuotaRules is null || ProviderBindings is null ||
-            Latest is null || Baselines is null || Deltas is null || Notifications is null || Failures is null)
+            Latest is null || Baselines is null || Deltas is null || Notifications is null || Failures is null ||
+            Recoveries is null || Recoveries.Any(r => r is null || r.Key is null || r.Peak <= 0))
             throw new UsageException(FailureKind.Storage, "Invalid state shape or version.");
         Rules.Validate();
         Polling.Validate();

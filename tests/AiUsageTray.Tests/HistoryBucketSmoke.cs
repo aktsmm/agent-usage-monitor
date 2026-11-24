@@ -42,7 +42,10 @@ static class HistoryBucketSmoke
                 var slice = new DailyHistorySlice(day, query.Key, "p", "Plan", UsageUnit.PercentagePoints, definition,
                     1m, 1m, Coverage.CompleteToObservation, now.AddDays(i - 6), now.AddDays(i - 6).AddHours(8), [])
                 { CumulativeCaptured = true };
-                return new HistoryDay(day, [slice]);
+                // One stray day of another unit, as the API sometimes reports a bucket as unlimited for a moment.
+                return query.Key.Account == accountA && query.Key.Bucket == primary && i == 0
+                    ? new HistoryDay(day, [slice, slice with { PeriodId = "sparse", Unit = UsageUnit.Credits }])
+                    : new HistoryDay(day, [slice]);
             }).ToList();
             return Task.FromResult(new HistoryResponse(true, DaysPage: new HistoryDayPage(days, null, "s")));
         }, accountName: key => key.Id[..4], showAllBuckets: () => showAll) { ShowActivated = false };
@@ -53,6 +56,8 @@ static class HistoryBucketSmoke
         {
             await loaded.Task;
             await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            Descendants(window).OfType<Expander>().Single().IsExpanded = true;
+            window.UpdateLayout();
             var overview = Descendants(window).OfType<ListBox>().Single(list =>
                 list.Items.OfType<ListBoxItem>().Any(item => item.Tag is HistoryOverviewItem));
             var accounts = Descendants(window).OfType<ComboBox>().Single(box =>
@@ -77,6 +82,18 @@ static class HistoryBucketSmoke
             Switch(accountA);
             if (!Offered().SequenceEqual([primary]) || Selected() != primary)
                 throw new InvalidOperationException("Default history bucket list is not premium only");
+            var periods = Descendants(window).OfType<ComboBox>().Single(box =>
+                box.Items.OfType<ComboBoxItem>().Any(item => item.Tag?.GetType().Name == "PeriodSelection"));
+            var periodItems = periods.Items.OfType<ComboBoxItem>().ToArray();
+            var few = new UiLocalizer().Text(UiText.PeriodFewRecords);
+            if (periodItems.Length != 2 || periodItems[0].Tag!.ToString()!.Contains("sparse", StringComparison.Ordinal) ||
+                periodItems[0].Content!.ToString()!.Contains(few, StringComparison.Ordinal) ||
+                !periodItems[1].Content!.ToString()!.Contains(few, StringComparison.Ordinal) ||
+                periods.SelectedItem != periodItems[0])
+                throw new InvalidOperationException("The period with the most observed days is not first, selected and unflagged");
+            if (!Descendants(window).OfType<TextBlock>().Any(text =>
+                    text.Text == new UiLocalizer().Text(UiText.PeriodUnitsExplanation)))
+                throw new InvalidOperationException("The pt and credit explanation is missing");
             Switch(accountB);
             if (Selected() != primary)
                 throw new InvalidOperationException("Switching accounts moved the selection away from premium");

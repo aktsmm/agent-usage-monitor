@@ -367,5 +367,10 @@ Shown after quota total and period are available.</value></data>
   <data name="BucketPremium" xml:space="preserve"><value>Premium requests</value></data>
   <data name="ShowAllCopilotBuckets" xml:space="preserve"><value>Also show Copilot Chat and Code completions</value></data>
   <data name="ShowAllCopilotBucketsNote" xml:space="preserve"><value>By default Copilot shows only Premium requests. Turn this on to also list Chat and Code completions in usage, the strip and history. Collection, history records and notifications are not affected.</value></data>
+  <data name="HistoryOverviewCount" xml:space="preserve"><value>{0} items</value></data>
+  <data name="HistoryOverviewSelected" xml:space="preserve"><value>Selected: {0}</value></data>
+  <data name="PeriodUnitsExplanation" xml:space="preserve"><value>pt: change in the usage percentage (12% to 13% is 1 pt; not cost or tokens). Credits: usage credits reported by the API for unlimited quotas, with no denominator.</value></data>
+  <data name="PeriodFewRecords" xml:space="preserve"><value>few records</value></data>
+  <data name="HistoryRecoveryExcluded" xml:space="preserve"><value>Excluded: {0} {1}. The API reported 0 for a moment and then the earlier value again, so the climb back is not new usage.</value></data>
   <data name="HistoryGraphGuidanceAbove" xml:space="preserve"><value>The daily guide is above the chart scale; see the selected day's details.</value></data>
 </root>

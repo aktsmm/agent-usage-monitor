@@ -57,6 +57,108 @@ static class HistoryTests
             Equal(Coverage.CompleteToObservation, result.Coverage);
             Equal<decimal?>(100m / 31, result.Guidance);
         });
+        Test("history removes the climb back after a transient drop to zero without touching stored records", () =>
+        {
+            QuotaSnapshot At100(DateTimeOffset at, decimal used) => Snapshot(at) with { Used = used, UsedPercent = used };
+            var records = new[]
+            {
+                Record(At, At, null, DeltaKind.Baseline, At100(At, 40)),
+                Record(At, At.AddMinutes(5), null, DeltaKind.Adjustment, At100(At.AddMinutes(5), 0)),
+                Record(At.AddMinutes(5), At.AddMinutes(10), 0, DeltaKind.Consumption, At100(At.AddMinutes(10), 0)),
+                Record(At.AddMinutes(10), At.AddMinutes(15), 40, DeltaKind.Consumption, At100(At.AddMinutes(15), 40)),
+                Record(At.AddMinutes(15), At.AddMinutes(20), 2, DeltaKind.Consumption, At100(At.AddMinutes(20), 42))
+            };
+            var slice = DailyHistory.Project(Day, records, Gap).Single();
+            Equal<decimal?>(2, slice.Observed);
+            Equal(40m, slice.ExcludedRecovery);
+            Equal(Coverage.Partial, slice.Coverage);
+            Equal<decimal?>(40, records[3].Delta.Amount);
+            var steady = new[]
+            {
+                Record(At, At, null, DeltaKind.Baseline, At100(At, 40)),
+                Record(At, At.AddMinutes(5), 2, DeltaKind.Consumption, At100(At.AddMinutes(5), 42))
+            };
+            var plain = DailyHistory.Project(Day, steady, Gap).Single();
+            Equal<decimal?>(2, plain.Observed);
+            Equal(0m, plain.ExcludedRecovery);
+        });
+        Test("history knows a drop to zero shortly before midnight and never raises a stored amount", () =>
+        {
+            QuotaSnapshot AtUsed(DateTimeOffset at, decimal used) => Snapshot(at) with { Used = used, UsedPercent = used };
+            var yesterday = new[]
+            {
+                Record(At.AddMinutes(-10), At.AddMinutes(-10), null, DeltaKind.Baseline, AtUsed(At.AddMinutes(-10), 40)),
+                Record(At.AddMinutes(-10), At.AddMinutes(-5), null, DeltaKind.Adjustment, AtUsed(At.AddMinutes(-5), 0))
+            };
+            var today = new[]
+            {
+                Record(At.AddMinutes(-5), At.AddMinutes(5), 0, DeltaKind.Consumption, AtUsed(At.AddMinutes(5), 0)),
+                Record(At.AddMinutes(5), At.AddMinutes(10), 40, DeltaKind.Consumption, AtUsed(At.AddMinutes(10), 40)),
+                Record(At.AddMinutes(10), At.AddMinutes(15), 2, DeltaKind.Consumption, AtUsed(At.AddMinutes(15), 42))
+            };
+            var withContext = DailyHistory.Project(Day, today, Gap, yesterday).Single();
+            Equal<decimal?>(2, withContext.Observed);
+            Equal(40m, withContext.ExcludedRecovery);
+            // Without the previous day the drop is unknown, so nothing is removed (documented limitation of a missing day).
+            Equal<decimal?>(42, DailyHistory.Project(Day, today, Gap).Single().Observed);
+            // A stored amount smaller than the recomputed one stays as it is: the correction only removes consumption.
+            var small = new[]
+            {
+                Record(At, At, null, DeltaKind.Baseline, AtUsed(At, 40)),
+                Record(At, At.AddMinutes(5), null, DeltaKind.Adjustment, AtUsed(At.AddMinutes(5), 0)),
+                Record(At.AddMinutes(5), At.AddMinutes(10), 3, DeltaKind.Consumption, AtUsed(At.AddMinutes(10), 60))
+            };
+            var kept = DailyHistory.Project(Day, small, Gap).Single();
+            Equal<decimal?>(3, kept.Observed);
+            Equal(0m, kept.ExcludedRecovery);
+        });
+        TestFiles("history keeps a month summary whose raw day is missing instead of rebuilding it away", async f =>
+        {
+            var old = At.AddDays(-40);
+            var oldDay = JapaneseCalendar.Date(old);
+            QuotaSnapshot AtUsed(DateTimeOffset at, decimal used) => Snapshot(at) with
+            {
+                Used = used, UsedPercent = used, Window = new(WindowKind.Monthly, old.AddDays(-1), old.AddDays(28))
+            };
+            await f.Store.AppendAsync(Record(old, old, null, DeltaKind.Baseline, AtUsed(old, 40)), Gap, default);
+            await f.Store.AppendAsync(Record(old, old.AddMinutes(5), 2, DeltaKind.Consumption, AtUsed(old.AddMinutes(5), 42)), Gap, default);
+            var summaryPath = f.Store.SummaryPath(oldDay);
+            var node = JsonNode.Parse(await File.ReadAllTextAsync(summaryPath))!.AsObject();
+            node.Remove("Projection"); node.Remove("projection");
+            await File.WriteAllTextAsync(summaryPath, node.ToJsonString());
+            File.Delete(Path.Combine(Path.GetDirectoryName(summaryPath)!, oldDay.ToString("yyyy-MM-dd") + ".json"));
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var slice = (await f.Store.QueryAsync(new(oldDay, oldDay, Key), default)).Single().Slices.Single();
+            Equal<decimal?>(2, slice.Observed);
+        });        TestFiles("history rebuilds an older month summary made before the recovery correction", async f =>
+        {
+            var old = At.AddDays(-40);
+            var oldDay = JapaneseCalendar.Date(old);
+            QuotaSnapshot AtUsed(DateTimeOffset at, decimal used) => Snapshot(at) with
+            {
+                Used = used, UsedPercent = used, Window = new(WindowKind.Monthly, old.AddDays(-1), old.AddDays(28))
+            };
+            await f.Store.AppendAsync(Record(old, old, null, DeltaKind.Baseline, AtUsed(old, 40)), Gap, default);
+            await f.Store.AppendAsync(Record(old, old.AddMinutes(5), null, DeltaKind.Adjustment, AtUsed(old.AddMinutes(5), 0)), Gap, default);
+            await f.Store.AppendAsync(Record(old.AddMinutes(5), old.AddMinutes(10), 0, DeltaKind.Consumption, AtUsed(old.AddMinutes(10), 0)), Gap, default);
+            await f.Store.AppendAsync(Record(old.AddMinutes(10), old.AddMinutes(15), 40, DeltaKind.Consumption, AtUsed(old.AddMinutes(15), 40)), Gap, default);
+            await f.Store.AppendAsync(Record(old.AddMinutes(15), old.AddMinutes(20), 2, DeltaKind.Consumption, AtUsed(old.AddMinutes(20), 42)), Gap, default);
+            var summaryPath = f.Store.SummaryPath(oldDay);
+            var node = JsonNode.Parse(await File.ReadAllTextAsync(summaryPath))!.AsObject();
+            node.Remove("Projection"); node.Remove("projection");
+            var first = (node["Slices"] ?? node["slices"])!.AsArray()[0]!.AsObject();
+            first["Observed"] = 99; first["observed"] = 99;
+            first.Remove("ExcludedRecovery"); first.Remove("excludedRecovery");
+            await File.WriteAllTextAsync(summaryPath, node.ToJsonString());
+            var before = (await f.Store.QueryAsync(new(oldDay, oldDay, Key), default)).Single().Slices.Single();
+            Equal<decimal?>(99, before.Observed);
+            // Any later append refreshes one stale older month from its raw days.
+            await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
+            var slice = (await f.Store.QueryAsync(new(oldDay, oldDay, Key), default)).Single().Slices.Single();
+            Equal<decimal?>(2, slice.Observed);
+            Equal(40m, slice.ExcludedRecovery);
+            True(File.ReadAllText(summaryPath).Contains("rojection", StringComparison.Ordinal));
+        });
         TestFiles("history writer retries concurrent readers without changing their snapshots", async f =>
         {
             await f.Store.AppendAsync(Record(At, At.AddMinutes(5)), Gap, default);
